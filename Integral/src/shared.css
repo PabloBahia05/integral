@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #cce7f9; min-height: 100vh; font-family: 'Space Mono', monospace; }
+
+/* ── Encabezado de pantalla ── */
+.screen-header { margin-bottom: 32px; }
+.screen-title { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; color: #0a3a5c; }
+.screen-subtitle { font-size: 11px; color: #6699bb; letter-spacing: 3px; text-transform: uppercase; margin-top: 4px; }
+
+/* ── Barra de acciones ── */
+.action-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+.selected-info { margin-left: auto; font-size: 12px; color: #6699bb; }
+.selected-info span { color: #0a3a5c; font-weight: bold; }
+
+/* ── Botones de acción ── */
+.btn-action { padding: 10px 18px; border-radius: 3px; font-family: 'Space Mono', monospace; font-size: 12px; cursor: pointer; transition: all 0.2s; border: 1px solid; }
+.btn-nuevo   { background: #0a3a5c; border-color: #0a3a5c; color: white; }
+.btn-nuevo:hover { background: #2277bb; border-color: #2277bb; }
+.btn-editar  { background: #c77dff22; border-color: #c77dff; color: #7b2fbf; }
+.btn-editar:hover { background: #c77dff; color: white; }
+.btn-eliminar { background: #ff6b6b22; border-color: #ff6b6b; color: #cc2222; }
+.btn-eliminar:hover { background: #ff6b6b; color: white; }
+.btn-editar:disabled, .btn-eliminar:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── Modal / Formulario ── */
+.confirm-text { font-size: 14px; color: #4a6a8c; margin-bottom: 20px; line-height: 1.6; }
+.confirm-name { color: #0a3a5c; font-weight: bold; }
+.btn-cancel { padding: 10px 20px; background: none; border: 1px solid #a0cce8; border-radius: 3px; font-family: 'Space Mono', monospace; font-size: 12px; color: #6699bb; cursor: pointer; transition: all 0.2s; }
+.btn-cancel:hover { border-color: #0a3a5c; color: #0a3a5c; }
+.btn-save { padding: 10px 20px; background: #0a3a5c; border: 1px solid #0a3a5c; border-radius: 3px; font-family: 'Space Mono', monospace; font-size: 12px; color: white; cursor: pointer; transition: all 0.2s; }
+.btn-save:hover { background: #2277bb; border-color: #2277bb; }
+.btn-danger { background: #cc2222; border-color: #cc2222; color: white; padding: 10px 20px; border-radius: 3px; font-family: 'Space Mono', monospace; font-size: 12px; cursor: pointer; }
+.btn-danger:hover { background: #ff4444; }
+.form-actions { display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end; }
+
+/* ── Stat cards ── */
+.stats-row { display: flex; gap: 16px; margin-bottom: 24px; }
+.stat-card { background: #fff; border: 1px solid #a0cce8; border-radius: 4px; padding: 16px 20px; flex: 1; }
+.stat-num { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; color: #0a3a5c; }
+.stat-label { font-size: 10px; color: #88aacc; letter-spacing: 2px; text-transform: uppercase; }
+
+/* ── Error inline ── */
+.form-error { color: #cc2222; font-size: 12px; margin-bottom: 12px; }
+
+/* ── Modal ── */
+.modal-overlay { position: fixed; inset: 0; background: #00000066; z-index: 200; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.15s ease; }
+.modal-box { background: #e8f5fd; border: 1px solid #a0cce8; border-radius: 4px; padding: 36px 40px; width: 440px; max-width: 95vw; position: relative; animation: slideUp 0.2s ease; }
+.modal-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; color: #0a3a5c; margin-bottom: 24px; }
+.modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; cursor: pointer; font-size: 18px; color: #6699bb; transition: color 0.2s; }
+.modal-close:hover { color: #0a3a5c; }
+
+/* ── Formulario ── */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #6699bb; margin-bottom: 6px; }
+.form-input { width: 100%; padding: 10px 14px; background: #fff; border: 1px solid #a0cce8; border-radius: 3px; font-family: 'Space Mono', monospace; font-size: 13px; color: #0a3a5c; transition: border-color 0.2s; outline: none; }
+.form-input:focus { border-color: #2277bb; }
+
+/* ── Tabla ── */
+.table-wrap { border: 1px solid #a0cce8; border-radius: 4px; overflow: hidden; margin-bottom: 20px; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table thead { background: #0a3a5c; }
+.data-table th { padding: 12px 16px; text-align: left; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #60efff; font-weight: 700; }
+.data-table td { padding: 12px 16px; font-size: 13px; color: #2a4a6c; border-bottom: 1px solid #d0e8f5; }
+.data-table tbody tr { cursor: pointer; transition: background 0.15s; background: #fff; }
+.data-table tbody tr:hover { background: #ddf0fb; }
+.data-table tbody tr.selected { background: #c5e8f7; border-left: 3px solid #2277bb; }
+.data-table tbody tr:last-child td { border-bottom: none; }
+.empty-msg { text-align: center; padding: 40px; color: #88aacc; font-size: 13px; background: #fff; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; background: #d0e8f5; color: #0a3a5c; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }

@@ -1,7 +1,15 @@
 import { useState } from "react";
 import Clientes from "./screens/Clientes";
 import Productos from "./screens/Productos";
+import Insumos from "./screens/Insumos";
 import ActionButton from "./Component/ActionButton";
+import { useLocalStorage } from "./hooks/useLocalStorage";
+
+const SCREENS = {
+  clientes: { label: "CLIENTES", icon: "👥" },
+  insumos: { label: "INSUMOS", icon: "📦" },
+  productos: { label: "PRODUCTOS", icon: "🛒" },
+};
 
 const buttons = [
   {
@@ -19,9 +27,15 @@ const buttons = [
     color: "#ff6b6b",
     screen: "productos",
   },
-  { id: 4, label: "GUARDAR", icon: "💾", color: "#ffd93d", screen: null },
-  { id: 5, label: "EDITAR", icon: "✏️", color: "#c77dff", screen: null },
-  { id: 6, label: "ELIMINAR", icon: "🗑", color: "#ff9a3c", screen: null },
+  { id: 4, label: "GUARDAR", icon: "💾", color: "#ffd93d", action: "guardar" },
+  { id: 5, label: "EDITAR", icon: "✏️", color: "#c77dff", action: "editar" },
+  {
+    id: 6,
+    label: "ELIMINAR",
+    icon: "🗑",
+    color: "#ff9a3c",
+    action: "eliminar",
+  },
 ];
 
 export default function App() {
@@ -30,58 +44,244 @@ export default function App() {
   const [log, setLog] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const handleClick = (btn) => {
+  // Estado global de datos (persistido en localStorage)
+  const [clientes, setClientes] = useLocalStorage("app_clientes", []);
+  const [productos, setProductos] = useLocalStorage("app_productos", []);
+  const [insumos, setInsumos] = useLocalStorage("app_insumos", []);
+
+  // Selección activa por pantalla
+  const [selectedCliente, setSelectedCliente] = useState(null);
+  const [selectedProducto, setSelectedProducto] = useState(null);
+  const [selectedInsumo, setSelectedInsumo] = useState(null);
+
+  // Modal activo
+  const [modal, setModal] = useState(null);
+
+  const currentSelected =
+    screen === "clientes"
+      ? selectedCliente
+      : screen === "productos"
+        ? selectedProducto
+        : selectedInsumo;
+
+  const addLog = (msg) => setLog((prev) => [msg, ...prev.slice(0, 4)]);
+
+  // CRUD helpers
+  const makeCRUD = (get, set, selectFn, name) => ({
+    onSave: (item) => {
+      const exists = get.find((r) => r.id === item.id);
+      if (exists) {
+        set(get.map((r) => (r.id === item.id ? item : r)));
+        selectFn(item);
+        addLog(`✏️ ${name} actualizado: ${item.nombre}`);
+      } else {
+        set([...get, item]);
+        selectFn(item);
+        addLog(`💾 ${name} guardado: ${item.nombre}`);
+      }
+    },
+    onDelete: (id) => {
+      const item = get.find((r) => r.id === id);
+      set(get.filter((r) => r.id !== id));
+      selectFn(null);
+      addLog(`🗑 ${name} eliminado: ${item?.nombre}`);
+    },
+    onSelect: (row) => selectFn(row?.id === currentSelected?.id ? null : row),
+    onOpenModal: setModal,
+    onCloseModal: () => setModal(null),
+  });
+
+  const clientesCRUD = makeCRUD(
+    clientes,
+    setClientes,
+    setSelectedCliente,
+    "Cliente",
+  );
+  const productosCRUD = makeCRUD(
+    productos,
+    setProductos,
+    setSelectedProducto,
+    "Producto",
+  );
+  const insumosCRUD = makeCRUD(
+    insumos,
+    setInsumos,
+    setSelectedInsumo,
+    "Insumo",
+  );
+
+  const handlePanelButton = (btn) => {
     setActive(btn.id);
-    setLog((prev) => [
-      `${btn.icon} ${btn.label} ejecutado`,
-      ...prev.slice(0, 4),
-    ]);
     setTimeout(() => setActive(null), 300);
-    if (btn.screen) setScreen(btn.screen);
+
+    if (btn.screen) {
+      setScreen(btn.screen);
+      addLog(`${btn.icon} Abriendo ${btn.label}`);
+      return;
+    }
+
+    // Botones de acción (GUARDAR / EDITAR / ELIMINAR)
+    if (!screen) {
+      addLog("⚠️ Primero seleccioná una pantalla");
+      return;
+    }
+    if (btn.action === "guardar") {
+      setModal("nuevo");
+      addLog(`${btn.icon} ${btn.label} — ${SCREENS[screen]?.label}`);
+    }
+    if (btn.action === "editar") {
+      currentSelected
+        ? setModal("editar")
+        : addLog("⚠️ Seleccioná un registro primero");
+    }
+    if (btn.action === "eliminar") {
+      currentSelected
+        ? setModal("eliminar")
+        : addLog("⚠️ Seleccioná un registro primero");
+    }
   };
+
+  const GLOBAL_STYLE = `
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #cce7f9; min-height: 100vh; font-family: 'Space Mono', monospace; }
+  `;
 
   // ── PANTALLAS ──────────────────────────────────────────
   if (screen) {
+    const crud =
+      screen === "clientes"
+        ? clientesCRUD
+        : screen === "productos"
+          ? productosCRUD
+          : insumosCRUD;
+    const sel =
+      screen === "clientes"
+        ? selectedCliente
+        : screen === "productos"
+          ? selectedProducto
+          : selectedInsumo;
+
     return (
       <>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
-          *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-          body {
-            background: #cce7f9;
-            min-height: 100vh;
-            font-family: 'Space Mono', monospace;
+        <style>
+          {GLOBAL_STYLE}
+          {`
+          .screen-layout { display: flex; min-height: 100vh; }
+          .screen-sidebar {
+            width: 240px; background: #0a3a5c; color: white;
+            padding: 32px 20px; flex-shrink: 0;
+            display: flex; flex-direction: column; gap: 8px;
           }
-          .screen-wrapper {
-            min-height: 100vh;
-            padding: 40px;
+          .screen-sidebar h3 { font-size: 10px; letter-spacing: 3px; color: #60efff; text-transform: uppercase; margin-bottom: 16px; }
+          .side-btn {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 14px; border-radius: 3px;
+            background: none; border: 1px solid transparent;
+            color: #a0cce8; font-family: 'Space Mono', monospace;
+            font-size: 12px; cursor: pointer; transition: all 0.2s;
+            text-align: left; width: 100%;
           }
-          .back-btn {
-            background: none;
-            border: 1px solid #a0cce8;
-            border-radius: 3px;
-            padding: 8px 16px;
-            cursor: pointer;
-            font-family: 'Space Mono', monospace;
-            font-size: 12px;
-            color: #0a3a5c;
-            margin-bottom: 32px;
-            display: inline-block;
-            transition: all 0.2s;
+          .side-btn:hover { background: #ffffff15; border-color: #ffffff22; color: white; }
+          .side-btn.active { background: #ffffff20; border-color: #60efff44; color: white; }
+          .side-divider { height: 1px; background: #1a4a6c; margin: 8px 0; }
+          .side-back { margin-top: auto; color: #6699bb; font-size: 11px; }
+          .screen-main { flex: 1; padding: 48px 40px; max-width: 900px; }
+          .action-quick { display: flex; gap: 8px; margin-bottom: 32px; }
+          .quick-btn {
+            padding: 8px 16px; border-radius: 3px;
+            font-family: 'Space Mono', monospace; font-size: 11px;
+            cursor: pointer; border: 1px solid; transition: all 0.2s;
           }
-          .back-btn:hover { background: #0a3a5c; color: white; }
-        `}</style>
-        <div className="screen-wrapper">
-          <button className="back-btn" onClick={() => setScreen(null)}>
-            ← Volver al Panel
-          </button>
-          {screen === "clientes" && <Clientes />}
-          {screen === "productos" && <Productos />}
-          {screen === "insumos" && (
-            <div>
-              <h2>Insumos</h2>
-            </div>
-          )}
+          .log-mini { padding: 12px 16px; background: #fff; border: 1px solid #a0cce8; border-radius: 4px; margin-bottom: 24px; }
+          .log-mini-title { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #88aacc; margin-bottom: 6px; }
+          .log-mini-item { font-size: 11px; color: #99bbcc; }
+          .log-mini-item:first-of-type { color: #2277bb; }
+        `}
+        </style>
+
+        <div className="screen-layout">
+          {/* Sidebar lateral */}
+          <div className="screen-sidebar">
+            <h3>Navegación</h3>
+            {["clientes", "insumos", "productos"].map((s) => (
+              <button
+                key={s}
+                className={`side-btn ${screen === s ? "active" : ""}`}
+                onClick={() => setScreen(s)}
+              >
+                {SCREENS[s].icon} {SCREENS[s].label}
+              </button>
+            ))}
+            <div className="side-divider" />
+            <h3 style={{ marginTop: 8 }}>Acciones rápidas</h3>
+            <button className="side-btn" onClick={() => setModal("nuevo")}>
+              ＋ Nuevo registro
+            </button>
+            <button
+              className="side-btn"
+              style={{ opacity: sel ? 1 : 0.4 }}
+              onClick={() => sel && setModal("editar")}
+            >
+              ✏️ Editar seleccionado
+            </button>
+            <button
+              className="side-btn"
+              style={{
+                opacity: sel ? 1 : 0.4,
+                color: sel ? "#ff9999" : undefined,
+              }}
+              onClick={() => sel && setModal("eliminar")}
+            >
+              🗑 Eliminar seleccionado
+            </button>
+            <div className="side-divider" />
+            <button
+              className="side-btn side-back"
+              onClick={() => setScreen(null)}
+            >
+              ← Volver al panel
+            </button>
+          </div>
+
+          {/* Contenido principal */}
+          <div className="screen-main">
+            {log.length > 0 && (
+              <div className="log-mini">
+                <div className="log-mini-title">Última actividad</div>
+                {log.slice(0, 2).map((e, i) => (
+                  <div key={i} className="log-mini-item">
+                    {e}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {screen === "clientes" && (
+              <Clientes
+                clientes={clientes}
+                selected={sel}
+                modal={modal}
+                {...crud}
+              />
+            )}
+            {screen === "productos" && (
+              <Productos
+                productos={productos}
+                selected={sel}
+                modal={modal}
+                {...crud}
+              />
+            )}
+            {screen === "insumos" && (
+              <Insumos
+                insumos={insumos}
+                selected={sel}
+                modal={modal}
+                {...crud}
+              />
+            )}
+          </div>
         </div>
       </>
     );
@@ -90,17 +290,10 @@ export default function App() {
   // ── PANEL PRINCIPAL ────────────────────────────────────
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-          background: #cce7f9;
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: 'Space Mono', monospace;
-        }
+      <style>
+        {GLOBAL_STYLE}
+        {`
+        body { display: flex; align-items: center; justify-content: center; }
         .overlay { display: none; position: fixed; inset: 0; background: #00000055; z-index: 99; }
         .overlay.open { display: block; }
         .sidebar {
@@ -116,31 +309,15 @@ export default function App() {
         .sidebar h3 { font-size: 11px; letter-spacing: 3px; color: #60efff; text-transform: uppercase; margin-bottom: 24px; }
         .sidebar p { padding: 10px 0; cursor: pointer; color: #a0cce8; font-size: 13px; border-bottom: 1px solid #1a4a6c; transition: color 0.2s; }
         .sidebar p:hover { color: white; }
-        .wrapper {
-          width: 480px; padding: 48px 40px;
-          background: #e8f5fd; border: 1px solid #a0cce8;
-          border-radius: 4px; position: relative; overflow: hidden;
-        }
-        .wrapper::before {
-          content: ''; position: absolute; top: -120px; right: -120px;
-          width: 300px; height: 300px;
-          background: radial-gradient(circle, #4ab0e820 0%, transparent 70%);
-          pointer-events: none;
-        }
+        .wrapper { width: 480px; padding: 48px 40px; background: #e8f5fd; border: 1px solid #a0cce8; border-radius: 4px; position: relative; overflow: hidden; }
+        .wrapper::before { content: ''; position: absolute; top: -120px; right: -120px; width: 300px; height: 300px; background: radial-gradient(circle, #4ab0e820 0%, transparent 70%); pointer-events: none; }
         .top-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
         .title { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: #0a3a5c; letter-spacing: -0.5px; }
         .subtitle { font-size: 11px; color: #6699bb; letter-spacing: 3px; text-transform: uppercase; margin-top: 6px; }
         .menu-btn { background: none; border: 1px solid #a0cce8; border-radius: 3px; padding: 6px 12px; cursor: pointer; font-size: 18px; color: #0a3a5c; transition: all 0.2s; }
         .menu-btn:hover { background: #0a3a5c; color: white; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 32px; }
-        .btn {
-          display: flex; align-items: center; gap: 10px;
-          padding: 16px 20px; background: #ffffff;
-          border: 1px solid #a0cce8; border-radius: 3px;
-          color: #2255aa; font-family: 'Space Mono', monospace;
-          font-size: 13px; cursor: pointer; transition: all 0.15s ease;
-          position: relative; overflow: hidden;
-        }
+        .btn { display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: #ffffff; border: 1px solid #a0cce8; border-radius: 3px; color: #2255aa; font-family: 'Space Mono', monospace; font-size: 13px; cursor: pointer; transition: all 0.15s ease; position: relative; overflow: hidden; }
         .btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0; height: 2px; background: var(--accent); transition: width 0.2s ease; }
         .btn:hover { border-color: var(--accent); background: var(--accent); color: #ffffff; transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent)44; }
         .btn:hover::after { width: 100%; }
@@ -150,8 +327,12 @@ export default function App() {
         .log-title { font-size: 10px; color: #88aacc; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
         .log-item { font-size: 12px; color: #99bbcc; padding: 4px 0; animation: fadeIn 0.3s ease; }
         .log-item:first-child { color: #2277bb; }
+        .data-summary { display: flex; gap: 8px; margin-bottom: 24px; }
+        .sum-chip { background: #fff; border: 1px solid #a0cce8; border-radius: 20px; padding: 4px 12px; font-size: 11px; color: #4a6a8c; }
+        .sum-chip strong { color: #0a3a5c; }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
-      `}</style>
+      `}
+      </style>
 
       <div
         className={`overlay ${sidebarOpen ? "open" : ""}`}
@@ -159,21 +340,34 @@ export default function App() {
       />
       <div className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <h3>Menú</h3>
+        <p onClick={() => setScreen("clientes")}>👥 Clientes</p>
+        <p onClick={() => setScreen("productos")}>🛒 Productos</p>
+        <p onClick={() => setScreen("insumos")}>📦 Insumos</p>
         <p>⚙️ Configuración</p>
         <p>📊 Reportes</p>
-        <p>👤 Mi perfil</p>
-        <p>🚪 Salir</p>
       </div>
 
       <div className="wrapper">
         <div className="top-bar">
           <div>
             <h1 className="title">Panel de Control</h1>
-            <p className="subtitle">Acciones disponibles</p>
+            <p className="subtitle">Sistema integral</p>
           </div>
           <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
             ☰
           </button>
+        </div>
+
+        <div className="data-summary">
+          <span className="sum-chip">
+            👥 <strong>{clientes.length}</strong> clientes
+          </span>
+          <span className="sum-chip">
+            🛒 <strong>{productos.length}</strong> productos
+          </span>
+          <span className="sum-chip">
+            📦 <strong>{insumos.length}</strong> insumos
+          </span>
         </div>
 
         <div className="grid">
@@ -184,13 +378,13 @@ export default function App() {
               icon={btn.icon}
               color={btn.color}
               isActive={active === btn.id}
-              onClick={() => handleClick(btn)}
+              onClick={() => handlePanelButton(btn)}
             />
           ))}
         </div>
 
         <div className="log">
-          <p className="log-title">Registro</p>
+          <p className="log-title">Registro de actividad</p>
           {log.length === 0 ? (
             <p className="log-item">— sin actividad —</p>
           ) : (
