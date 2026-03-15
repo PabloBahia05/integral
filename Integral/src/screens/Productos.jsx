@@ -8,52 +8,100 @@ import ConfirmDelete from "../Component/ConfirmDelete";
 import FormField from "../Component/FormField";
 
 const COLUMNS = [
-  { key: "id", label: "ID" },
-  { key: "nombre", label: "Producto" },
-  { key: "categoria", label: "Categoría" },
-  { key: "precio", label: "Precio", render: (v) => `$${parseFloat(v || 0).toFixed(2)}` },
-  { key: "stock", label: "Stock", render: (v) => <span className="badge">{v} u.</span> },
+  { key: "id",      label: "ID" },
+  { key: "codart",  label: "Código" },
+  { key: "articulo", label: "Artículo" },
+  { key: "area",    label: "Área" },
+  { key: "precio",  label: "Precio",      render: (v) => v ? `$${parseFloat(v).toFixed(2)}` : "-" },
+  { key: "preciorep", label: "Precio Rep.", render: (v) => v ? `$${parseFloat(v).toFixed(2)}` : "-" },
 ];
 
-const EMPTY = { nombre: "", categoria: "", precio: "", stock: "" };
+const EMPTY = {
+  codart: "", articulo: "", area: "", artfoto: "",
+  precio: "", "precio-21": "", "precio+10": "",
+  "precio+10+10": "", "precio+10+15": "", preciorep: "",
+};
 
-const FIELDS = [
-  { field: "nombre",    label: "Producto *",           placeholder: "Ej: Silla ergonómica" },
-  { field: "categoria", label: "Categoría",            placeholder: "Ej: Mobiliario" },
-  { field: "precio",    label: "Precio ($) *",         placeholder: "Ej: 15000" },
-  { field: "stock",     label: "Stock (unidades)",     placeholder: "Ej: 50" },
+const FIELDS_LEFT = [
+  { field: "codart",   label: "Código Artículo", placeholder: "Ej: ART-001" },
+  { field: "articulo", label: "Artículo *",       placeholder: "Ej: Silla ergonómica" },
+  { field: "area",     label: "Área",             placeholder: "Ej: Oficina" },
+  { field: "artfoto",  label: "Foto (URL)",       placeholder: "Ej: https://..." },
+  { field: "precio",   label: "Precio base",      placeholder: "Ej: 15000" },
 ];
+
+const FIELDS_RIGHT = [
+  { field: "precio-21",    label: "Precio -21%",       placeholder: "Ej: 11850" },
+  { field: "precio+10",    label: "Precio +10%",       placeholder: "Ej: 16500" },
+  { field: "precio+10+10", label: "Precio +10+10%",    placeholder: "Ej: 18150" },
+  { field: "precio+10+15", label: "Precio +10+15%",    placeholder: "Ej: 18975" },
+  { field: "preciorep",    label: "Precio Reposición", placeholder: "Ej: 14000" },
+];
+
+const toDecimal = (v) => v !== "" && v !== null && v !== undefined ? parseFloat(v) || null : null;
 
 export default function Productos({ productos, onSave, onDelete, selected, onSelect, modal, onOpenModal, onCloseModal }) {
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+
+  const filtered = productos.filter((p) => {
+    const q = search.toLowerCase();
+    return (
+      (p.articulo ?? "").toLowerCase().includes(q) ||
+      (p.area     ?? "").toLowerCase().includes(q) ||
+      String(p.codart ?? "").toLowerCase().includes(q)
+    );
+  });
 
   const openNew = () => { setForm(EMPTY); setError(""); onOpenModal("nuevo"); };
+
   const openEdit = () => {
     if (!selected) return;
-    setForm({ nombre: selected.nombre, categoria: selected.categoria, precio: String(selected.precio), stock: String(selected.stock) });
-    setError(""); onOpenModal("editar");
+    setForm({
+      codart:          selected.codart          ?? "",
+      articulo:        selected.articulo        ?? "",
+      area:            selected.area            ?? "",
+      artfoto:         selected.artfoto         ?? "",
+      precio:          selected.precio          ?? "",
+      "precio-21":     selected["precio-21"]    ?? "",
+      "precio+10":     selected["precio+10"]    ?? "",
+      "precio+10+10":  selected["precio+10+10"] ?? "",
+      "precio+10+15":  selected["precio+10+15"] ?? "",
+      preciorep:       selected.preciorep       ?? "",
+    });
+    setError("");
+    onOpenModal("editar");
   };
 
   const handleSubmit = () => {
-    if (!form.nombre.trim()) { setError("El nombre es obligatorio."); return; }
-    if (isNaN(parseFloat(form.precio))) { setError("El precio debe ser un número."); return; }
-    const data = { ...form, precio: parseFloat(form.precio), stock: parseInt(form.stock) || 0 };
-    onSave(modal === "nuevo" ? { ...data, id: Date.now() } : { ...data, id: selected.id });
-    onCloseModal(); setForm(EMPTY);
+    if (!form.articulo.trim()) { setError("El artículo es obligatorio."); return; }
+    const data = {
+      ...form,
+      precio:         toDecimal(form.precio),
+      "precio-21":    toDecimal(form["precio-21"]),
+      "precio+10":    toDecimal(form["precio+10"]),
+      "precio+10+10": toDecimal(form["precio+10+10"]),
+      "precio+10+15": toDecimal(form["precio+10+15"]),
+      preciorep:      toDecimal(form.preciorep),
+    };
+    onSave(modal === "nuevo" ? data : { ...data, id: selected.id });
+    onCloseModal();
+    setForm(EMPTY);
   };
 
-  const totalStock  = productos.reduce((acc, p) => acc + (parseInt(p.stock) || 0), 0);
-  const valorTotal  = productos.reduce((acc, p) => acc + (parseFloat(p.precio) || 0) * (parseInt(p.stock) || 0), 0);
+  const precioPromedio = productos.length
+    ? (productos.reduce((acc, p) => acc + (parseFloat(p.precio) || 0), 0) / productos.length).toFixed(2)
+    : "0.00";
 
   return (
     <>
       <ScreenHeader icon="🛒" title="Productos" subtitle="Gestión de productos" />
 
       <StatCards stats={[
-        { label: "Productos",      value: productos.length },
-        { label: "Stock total",    value: totalStock },
-        { label: "Valor en stock", value: `$${valorTotal.toFixed(0)}` },
+        { label: "Total productos",   value: productos.length },
+        { label: "Resultados filtro", value: filtered.length },
+        { label: "Precio promedio",   value: `$${precioPromedio}` },
       ]} />
 
       <ActionBar
@@ -61,17 +109,22 @@ export default function Productos({ productos, onSave, onDelete, selected, onSel
         onNew={openNew}
         onEdit={openEdit}
         onDelete={() => selected && onOpenModal("eliminar")}
+        search={search}
+        onSearch={setSearch}
       />
 
-      <DataTable columns={COLUMNS} rows={productos} selectedId={selected?.id} onSelect={onSelect} />
+      <DataTable columns={COLUMNS} rows={filtered} selectedId={selected?.id} onSelect={onSelect} />
 
       {(modal === "nuevo" || modal === "editar") && (
         <Modal title={modal === "nuevo" ? "Nuevo producto" : "Editar producto"} onClose={onCloseModal}>
           {error && <p className="form-error">{error}</p>}
-          {FIELDS.map(f => <FormField key={f.field} {...f} form={form} setForm={setForm} />)}
+          <div className="form-grid">
+            <div>{FIELDS_LEFT.map(f  => <FormField key={f.field} {...f} form={form} setForm={setForm} />)}</div>
+            <div>{FIELDS_RIGHT.map(f => <FormField key={f.field} {...f} form={form} setForm={setForm} />)}</div>
+          </div>
           <div className="form-actions">
             <button className="btn-cancel" onClick={onCloseModal}>Cancelar</button>
-            <button className="btn-save" onClick={handleSubmit}>{modal === "nuevo" ? "Guardar" : "Actualizar"}</button>
+            <button className="btn-save"   onClick={handleSubmit}>{modal === "nuevo" ? "Guardar" : "Actualizar"}</button>
           </div>
         </Modal>
       )}
