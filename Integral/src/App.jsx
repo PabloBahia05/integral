@@ -1,5 +1,10 @@
 import Clientes from "./screens/Clientes";
 import Productos from "./screens/Productos";
+import PresupuestoMuebles from "./screens/PresupuestoMuebles";
+import PresupuestoMamparas from "./screens/PresupuestoMamparas";
+import VerTablas from "./screens/VerTablas";
+import Margen from "./screens/Margen";
+import PresupuestosMamparasTabla from "./screens/PresupuestosMamparasTabla";
 import ActionButton from "./Component/ActionButton";
 import { useEffect, useState } from "react";
 
@@ -8,14 +13,70 @@ const API = "http://localhost:3001";
 const SCREENS = {
   clientes: { label: "CLIENTES", icon: "👥" },
   productos: { label: "PRODUCTOS", icon: "🛒" },
+  "presupuesto-muebles": { label: "PRESUPUESTO MUEBLES", icon: "🪵" },
+  "presupuesto-mamparas": { label: "PRESUPUESTO MAMPARAS", icon: "🪟" },
+  "ver-tablas": { label: "VER TABLAS", icon: "🗃️" },
+  "presupuestos-tabla": { label: "PRESUPUESTOS MAMPARAS", icon: "📋" },
+  "presupuesto-vanitory": { label: "PRESUPUESTO VANITORY", icon: "🚿" },
 };
 
 const buttons = [
-  { id: 1, label: "CLIENTES",  icon: "👥", color: "#eb56d7", screen: "clientes" },
-  { id: 2, label: "PRODUCTOS", icon: "🛒", color: "#ff6b6b", screen: "productos" },
-  { id: 4, label: "GUARDAR",   icon: "💾", color: "#ffd93d", action: "guardar" },
-  { id: 5, label: "EDITAR",    icon: "✏️", color: "#c77dff", action: "editar" },
-  { id: 6, label: "ELIMINAR",  icon: "🗑",  color: "#ff9a3c", action: "eliminar" },
+  {
+    id: 1,
+    label: "CLIENTES",
+    icon: "👥",
+    color: "#eb56d7",
+    screen: "clientes",
+  },
+  {
+    id: 2,
+    label: "PRODUCTOS",
+    icon: "🛒",
+    color: "#ff6b6b",
+    screen: "productos",
+  },
+  {
+    id: 4,
+    label: "PRESUPUESTO MUEBLES",
+    icon: "🪵",
+    color: "#ffd93d",
+    screen: "presupuesto-muebles",
+  },
+  {
+    id: 5,
+    label: "PRESUPUESTO MAMPARAS",
+    icon: "🪟",
+    color: "#c77dff",
+    screen: "presupuesto-mamparas",
+  },
+  {
+    id: 6,
+    label: "ELIMINAR",
+    icon: "🗑",
+    color: "#ff9a3c",
+    action: "eliminar",
+  },
+  {
+    id: 7,
+    label: "VER TABLAS",
+    icon: "🗃️",
+    color: "#00c9a7",
+    screen: "ver-tablas",
+  },
+  {
+    id: 8,
+    label: "PRESUP. MAMPARAS",
+    icon: "📋",
+    color: "#4361ee",
+    screen: "presupuestos-tabla",
+  },
+  {
+    id: 9,
+    label: "PRESUP. VANITORY",
+    icon: "🚿",
+    color: "#06d6a0",
+    screen: "presupuesto-vanitory",
+  },
 ];
 
 export default function App() {
@@ -23,39 +84,145 @@ export default function App() {
   const [active, setActive] = useState(null);
   const [log, setLog] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   const [clientes, setClientes] = useState([]);
   const [productos, setProductos] = useState([]);
-
+  const [mamparasTipos, setMamparasTipos] = useState([]);
+  const [tiposVanitory, setTiposVanitory] = useState([]);
+  const [tiposEscritorio, setTiposEscritorio] = useState([]);
+  const [tiposDespensero, setTiposDespensero] = useState([]);
+  const [formulas, setFormulas] = useState([]);
+  const [margen, setMargen] = useState([]);
+  const [presupuestosMamparas, setPresupuestosMamparas] = useState([]);
+  const [selectedPresupuestoMampara, setSelectedPresupuestoMampara] =
+    useState(null);
+  const [asociaciones, setAsociaciones] = useState([]);
+  const [selectedAsociacion, setSelectedAsociacion] = useState(null);
+  const [asociacionesForm, setAsociacionesForm] = useState([]);
+  const [selectedAsociacionForm, setSelectedAsociacionForm] = useState(null);
+  const [colocaciones, setColocaciones] = useState([]);
+  const [selectedColocacion, setSelectedColocacion] = useState(null);
   const [selectedCliente, setSelectedCliente] = useState(null);
   const [selectedProducto, setSelectedProducto] = useState(null);
+  const [selectedMamparaTipo, setSelectedMamparaTipo] = useState(null);
+  const [selectedTipoVanitory, setSelectedTipoVanitory] = useState(null);
+  const [selectedTipoEscritorio, setSelectedTipoEscritorio] = useState(null);
+  const [selectedTipoDespensero, setSelectedTipoDespensero] = useState(null);
+  const [selectedFormula, setSelectedFormula] = useState(null);
+  const [selectedMargen, setSelectedMargen] = useState(null);
   const [modal, setModal] = useState(null);
 
   const addLog = (msg) => setLog((prev) => [msg, ...prev.slice(0, 4)]);
 
   // ── Cargar datos ─────────────────────────────────────────
   const fetchClientes = () =>
-    fetch(`${API}/clientes`).then(r => r.json()).then(setClientes).catch(console.error);
+    fetch(`${API}/clientes`)
+      .then((r) => r.json())
+      .then(setClientes)
+      .catch(console.error);
 
   const fetchProductos = () =>
-    fetch(`${API}/productos`).then(r => r.json()).then(setProductos).catch(console.error);
+    fetch(`${API}/productos`)
+      .then((r) => r.json())
+      .then(setProductos)
+      .catch(console.error);
+
+  const fetchMamparasTipos = () =>
+    fetch(`${API}/mamparas-tipos`)
+      .then((r) => r.json())
+      .then(setMamparasTipos)
+      .catch(console.error);
+
+  const fetchTiposVanitory = () =>
+    fetch(`${API}/vanitory-tipos`)
+      .then((r) => r.json())
+      .then(setTiposVanitory)
+      .catch(console.error);
+
+  const fetchTiposEscritorio = () =>
+    fetch(`${API}/escritorio-tipos`)
+      .then((r) => r.json())
+      .then(setTiposEscritorio)
+      .catch(console.error);
+
+  const fetchColocaciones = () =>
+    fetch(`${API}/colocacion`)
+      .then((r) => r.json())
+      .then(setColocaciones)
+      .catch(console.error);
+
+  const fetchTiposDespensero = () =>
+    fetch(`${API}/despensero-tipos`)
+      .then((r) => r.json())
+      .then(setTiposDespensero)
+      .catch(console.error);
+
+  const fetchPresupuestosMamparas = () =>
+    fetch(`${API}/presupuestos-mamparas`)
+      .then((r) => r.json())
+      .then(setPresupuestosMamparas)
+      .catch(console.error);
+
+  const fetchMargen = () =>
+    fetch(`${API}/margen`)
+      .then((r) => r.json())
+      .then(setMargen)
+      .catch(console.error);
+
+  const fetchFormulas = () =>
+    fetch(`${API}/formulas`)
+      .then((r) => r.json())
+      .then(setFormulas)
+      .catch(console.error);
+
+  const fetchAsociaciones = () =>
+    fetch(`${API}/asociaciones`)
+      .then((r) => r.json())
+      .then(setAsociaciones)
+      .catch(console.error);
+
+  const fetchAsociacionesForm = () =>
+    fetch(`${API}/asociaciones-form`)
+      .then((r) => r.json())
+      .then(setAsociacionesForm)
+      .catch(console.error);
 
   useEffect(() => {
     fetchClientes();
     fetchProductos();
+    fetchColocaciones();
+    fetchMamparasTipos();
+    fetchTiposVanitory();
+    fetchTiposEscritorio();
+    fetchTiposDespensero();
+    fetchFormulas();
+    fetchMargen();
+    fetchPresupuestosMamparas();
+    fetchAsociaciones();
+    fetchAsociacionesForm();
   }, []);
 
   // ── Selección activa ─────────────────────────────────────
   const currentSelected =
-    screen === "clientes" ? selectedCliente :
-    screen === "productos" ? selectedProducto :
-    null;
+    screen === "clientes"
+      ? selectedCliente
+      : screen === "productos"
+        ? selectedProducto
+        : null;
 
   // ── CRUD con fetch al servidor ───────────────────────────
   const makeCRUD = (endpoint, get, set, selectFn, fetchFn, name) => ({
-
     onSave: async (item) => {
-      const exists = item.id && get.find((r) => r.id === item.id);
+      // exists: si tiene id es edición (para productos con paginación el array local puede estar vacío)
+      const exists = !!item.id;
+      // _skipPost: el componente ya hizo el POST directamente (ej: Formulas con validación de duplicado)
+      if (item._skipPost) {
+        await fetchFn();
+        setModal(null);
+        selectFn(null);
+        return;
+      }
       try {
         if (exists) {
           // Editar — quitar el id del body
@@ -65,7 +232,11 @@ export default function App() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
           });
-          if (!res.ok) throw new Error(await res.text());
+          if (!res.ok) {
+            const errText = await res.text();
+            console.error(`PUT error ${endpoint}:`, errText);
+            throw new Error(errText);
+          }
           addLog(`✏️ ${name} actualizado: ${item.nombre ?? item.articulo}`);
         } else {
           // Crear — quitar id para que MySQL lo autogenere
@@ -78,18 +249,21 @@ export default function App() {
           if (!res.ok) throw new Error(await res.text());
           addLog(`💾 ${name} guardado: ${item.nombre ?? item.articulo}`);
         }
-        await fetchFn();   // refrescar tabla desde MySQL
+        await fetchFn(); // refrescar tabla desde MySQL
         setModal(null);
         selectFn(null);
       } catch (err) {
         console.error(`Error guardando ${name}:`, err);
+        alert(`Error al guardar: ${err.message}`);
       }
     },
 
     onDelete: async (id) => {
       try {
         const item = get.find((r) => r.id === id);
-        const res = await fetch(`${API}/${endpoint}/${id}`, { method: "DELETE" });
+        const res = await fetch(`${API}/${endpoint}/${id}`, {
+          method: "DELETE",
+        });
         if (!res.ok) throw new Error(await res.text());
         addLog(`🗑 ${name} eliminado: ${item?.nombre ?? item?.articulo}`);
         await fetchFn();
@@ -105,8 +279,102 @@ export default function App() {
     onCloseModal: () => setModal(null),
   });
 
-  const clientesCRUD  = makeCRUD("clientes",  clientes,  setClientes,  setSelectedCliente,  fetchClientes,  "Cliente");
-  const productosCRUD = makeCRUD("productos", productos, setProductos, setSelectedProducto, fetchProductos, "Producto");
+  const clientesCRUD = makeCRUD(
+    "clientes",
+    clientes,
+    setClientes,
+    setSelectedCliente,
+    fetchClientes,
+    "Cliente",
+  );
+  const colocacionesCRUD = makeCRUD(
+    "colocacion",
+    colocaciones,
+    setColocaciones,
+    setSelectedColocacion,
+    fetchColocaciones,
+    "Colocación",
+  );
+  const productosCRUD = makeCRUD(
+    "productos",
+    productos,
+    setProductos,
+    setSelectedProducto,
+    fetchProductos,
+    "Producto",
+  );
+  const mamparasTiposCRUD = makeCRUD(
+    "mamparas-tipos",
+    mamparasTipos,
+    setMamparasTipos,
+    setSelectedMamparaTipo,
+    fetchMamparasTipos,
+    "Tipo de mampara",
+  );
+  const tiposVanitoryRUD = makeCRUD(
+    "vanitory-tipos",
+    tiposVanitory,
+    setTiposVanitory,
+    setSelectedTipoVanitory,
+    fetchTiposVanitory,
+    "Tipo de vanitory",
+  );
+  const tiposEscritorioRUD = makeCRUD(
+    "escritorio-tipos",
+    tiposEscritorio,
+    setTiposEscritorio,
+    setSelectedTipoEscritorio,
+    fetchTiposEscritorio,
+    "Tipo de escritorio",
+  );
+  const tiposDespenseroRUD = makeCRUD(
+    "despensero-tipos",
+    tiposDespensero,
+    setTiposDespensero,
+    setSelectedTipoDespensero,
+    fetchTiposDespensero,
+    "Tipo de despensero",
+  );
+  const formulasCRUD = makeCRUD(
+    "formulas",
+    formulas,
+    setFormulas,
+    setSelectedFormula,
+    fetchFormulas,
+    "Fórmula",
+  );
+  const presupuestosMamparasCRUD = makeCRUD(
+    "presupuestos-mamparas",
+    presupuestosMamparas,
+    setPresupuestosMamparas,
+    setSelectedPresupuestoMampara,
+    fetchPresupuestosMamparas,
+    "Presupuesto Mampara",
+  );
+  const margenCRUD = makeCRUD(
+    "margen",
+    margen,
+    setMargen,
+    setSelectedMargen,
+    fetchMargen,
+    "Margen",
+  );
+  const asociacionesCRUD = makeCRUD(
+    "asociaciones",
+    asociaciones,
+    setAsociaciones,
+    setSelectedAsociacion,
+    fetchAsociaciones,
+    "Asociación",
+  );
+  const asociacionesFormCRUD = makeCRUD(
+    "asociaciones-form",
+    asociacionesForm,
+    setAsociacionesForm,
+    setSelectedAsociacionForm,
+    fetchAsociacionesForm,
+    "Asociación de Fórmula",
+  );
 
   // ── Botones del panel ────────────────────────────────────
   const handlePanelButton = (btn) => {
@@ -116,20 +384,28 @@ export default function App() {
     if (btn.screen) {
       setScreen(btn.screen);
       addLog(`${btn.icon} Abriendo ${btn.label}`);
+      if (btn.screen === "presupuestos-tabla") fetchPresupuestosMamparas();
       return;
     }
 
-    if (!screen) { addLog("⚠️ Primero seleccioná una pantalla"); return; }
+    if (!screen) {
+      addLog("⚠️ Primero seleccioná una pantalla");
+      return;
+    }
 
     if (btn.action === "guardar") {
       setModal("nuevo");
       addLog(`${btn.icon} ${btn.label} — ${SCREENS[screen]?.label}`);
     }
     if (btn.action === "editar") {
-      currentSelected ? setModal("editar") : addLog("⚠️ Seleccioná un registro primero");
+      currentSelected
+        ? setModal("editar")
+        : addLog("⚠️ Seleccioná un registro primero");
     }
     if (btn.action === "eliminar") {
-      currentSelected ? setModal("eliminar") : addLog("⚠️ Seleccioná un registro primero");
+      currentSelected
+        ? setModal("eliminar")
+        : addLog("⚠️ Seleccioná un registro primero");
     }
   };
 
@@ -142,55 +418,177 @@ export default function App() {
   // ── PANTALLAS ────────────────────────────────────────────
   if (screen) {
     const crud = screen === "clientes" ? clientesCRUD : productosCRUD;
-    const sel  = screen === "clientes" ? selectedCliente : selectedProducto;
+    const sel = screen === "clientes" ? selectedCliente : selectedProducto;
 
     return (
       <>
-        <style>{GLOBAL_STYLE}{`
+        <style>
+          {GLOBAL_STYLE}
+          {`
           .screen-layout { display: flex; min-height: 100vh; }
-          .screen-sidebar { width: 240px; background: #0a3a5c; color: white; padding: 32px 20px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
-          .screen-sidebar h3 { font-size: 10px; letter-spacing: 3px; color: #60efff; text-transform: uppercase; margin-bottom: 16px; }
-          .side-btn { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 3px; background: none; border: 1px solid transparent; color: #a0cce8; font-family: 'Space Mono', monospace; font-size: 12px; cursor: pointer; transition: all 0.2s; text-align: left; width: 100%; }
+          .screen-sidebar { width: 220px; background: #0a3a5c; color: white; padding: 24px 14px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; transition: width 0.25s ease, padding 0.25s ease; overflow: hidden; }
+          .screen-sidebar.collapsed { width: 50px; padding: 24px 7px; }
+          .screen-sidebar h3 { font-size: 10px; letter-spacing: 3px; color: #60efff; text-transform: uppercase; margin-bottom: 10px; white-space: nowrap; overflow: hidden; transition: opacity 0.2s; }
+          .screen-sidebar.collapsed h3 { opacity: 0; height: 0; margin: 0; }
+          .side-btn { display: flex; align-items: center; gap: 10px; padding: 10px 11px; border-radius: 3px; background: none; border: 1px solid transparent; color: #a0cce8; font-family: 'Space Mono', monospace; font-size: 12px; cursor: pointer; transition: all 0.2s; text-align: left; width: 100%; white-space: nowrap; overflow: hidden; }
           .side-btn:hover { background: #ffffff15; border-color: #ffffff22; color: white; }
           .side-btn.active { background: #ffffff20; border-color: #60efff44; color: white; }
-          .side-divider { height: 1px; background: #1a4a6c; margin: 8px 0; }
+          .btn-label { transition: opacity 0.15s; overflow: hidden; }
+          .screen-sidebar.collapsed .btn-label { opacity: 0; max-width: 0; }
+          .side-divider { height: 1px; background: #1a4a6c; margin: 6px 0; flex-shrink: 0; }
           .side-back { margin-top: auto; color: #6699bb; font-size: 11px; }
-          .screen-main { flex: 1; padding: 48px 40px; max-width: 1100px; }
+          .collapse-btn { display: flex; align-items: center; justify-content: center; padding: 7px; border-radius: 3px; background: none; border: 1px solid #1a4a6c; color: #60efff; cursor: pointer; font-size: 13px; margin-bottom: 6px; width: 100%; transition: all 0.2s; }
+          .collapse-btn:hover { background: #ffffff15; }
+          .screen-main { flex: 1; padding: 40px 36px; overflow: auto; }
           .log-mini { padding: 12px 16px; background: #fff; border: 1px solid #a0cce8; border-radius: 4px; margin-bottom: 24px; }
           .log-mini-title { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #88aacc; margin-bottom: 6px; }
           .log-mini-item { font-size: 11px; color: #99bbcc; }
           .log-mini-item:first-of-type { color: #2277bb; }
-        `}</style>
+        `}
+        </style>
 
         <div className="screen-layout">
-          <div className="screen-sidebar">
+          <div
+            className={`screen-sidebar${sidebarCollapsed ? " collapsed" : ""}`}
+          >
+            <button
+              className="collapse-btn"
+              onClick={() => setSidebarCollapsed((c) => !c)}
+              title={sidebarCollapsed ? "Expandir" : "Colapsar"}
+            >
+              {sidebarCollapsed ? "▶" : "◀"}
+            </button>
             <h3>Navegación</h3>
-            {["clientes", "productos"].map((s) => (
-              <button key={s} className={`side-btn ${screen === s ? "active" : ""}`} onClick={() => setScreen(s)}>
-                {SCREENS[s].icon} {SCREENS[s].label}
+            {[
+              "clientes",
+              "productos",
+              "presupuesto-mamparas",
+              "presupuesto-muebles",
+              "presupuesto-vanitory",
+              "presupuestos-tabla",
+              "ver-tablas",
+            ].map((s) => (
+              <button
+                key={s}
+                className={`side-btn ${screen === s ? "active" : ""}`}
+                onClick={() => { setScreen(s); if (s === "presupuestos-tabla") fetchPresupuestosMamparas(); }}
+                title={SCREENS[s].label}
+              >
+                <span>{SCREENS[s].icon}</span>
+                <span className="btn-label">&nbsp;{SCREENS[s].label}</span>
               </button>
             ))}
             <div className="side-divider" />
             <h3 style={{ marginTop: 8 }}>Acciones rápidas</h3>
-            <button className="side-btn" onClick={() => setModal("nuevo")}>＋ Nuevo registro</button>
-            <button className="side-btn" style={{ opacity: sel ? 1 : 0.4 }} onClick={() => sel && setModal("editar")}>✏️ Editar seleccionado</button>
-            <button className="side-btn" style={{ opacity: sel ? 1 : 0.4, color: sel ? "#ff9999" : undefined }} onClick={() => sel && setModal("eliminar")}>🗑 Eliminar seleccionado</button>
+            <button className="side-btn" onClick={() => setModal("nuevo")}>
+              <span>＋</span>
+              <span className="btn-label">&nbsp;Nuevo registro</span>
+            </button>
+            <button
+              className="side-btn"
+              style={{ opacity: sel ? 1 : 0.4 }}
+              onClick={() => sel && setModal("editar")}
+            >
+              <span>✏️</span>
+              <span className="btn-label">&nbsp;Editar seleccionado</span>
+            </button>
+            <button
+              className="side-btn"
+              style={{
+                opacity: sel ? 1 : 0.4,
+                color: sel ? "#ff9999" : undefined,
+              }}
+              onClick={() => sel && setModal("eliminar")}
+            >
+              <span>🗑</span>
+              <span className="btn-label">&nbsp;Eliminar seleccionado</span>
+            </button>
             <div className="side-divider" />
-            <button className="side-btn side-back" onClick={() => setScreen(null)}>← Volver al panel</button>
+            <button
+              className="side-btn side-back"
+              onClick={() => setScreen(null)}
+            >
+              <span>←</span>
+              <span className="btn-label">&nbsp;Volver al panel</span>
+            </button>
           </div>
 
           <div className="screen-main">
-            {log.length > 0 && (
-              <div className="log-mini">
-                <div className="log-mini-title">Última actividad</div>
-                {log.slice(0, 2).map((e, i) => <div key={i} className="log-mini-item">{e}</div>)}
-              </div>
-            )}
             {screen === "clientes" && (
-              <Clientes clientes={clientes} selected={sel} modal={modal} {...crud} />
+              <Clientes
+                clientes={clientes}
+                selected={sel}
+                modal={modal}
+                {...crud}
+              />
             )}
             {screen === "productos" && (
-              <Productos productos={productos} selected={sel} modal={modal} {...crud} />
+              <Productos selected={sel} modal={modal} {...crud} />
+            )}
+            {(screen === "presupuesto-muebles" ||
+              screen === "presupuesto-vanitory") && (
+              <PresupuestoMuebles
+                onSelectItem={(item) => console.log("Mueble:", item)}
+              />
+            )}
+            {screen === "presupuesto-mamparas" && (
+              <PresupuestoMamparas
+                onSelectItem={(item) => console.log("Mampara:", item)}
+                onGuardado={fetchPresupuestosMamparas}
+              />
+            )}
+            {screen === "presupuestos-tabla" && (
+              <PresupuestosMamparasTabla
+                presupuestos={presupuestosMamparas}
+                selected={selectedPresupuestoMampara}
+                modal={modal}
+                {...presupuestosMamparasCRUD}
+                onSelect={(row) =>
+                  setSelectedPresupuestoMampara(
+                    row?.id === selectedPresupuestoMampara?.id ? null : row,
+                  )
+                }
+              />
+            )}
+            {screen === "ver-tablas" && (
+              <VerTablas
+                clientes={clientes}
+                clientesCRUD={clientesCRUD}
+                selectedCliente={selectedCliente}
+                productos={productos}
+                productosCRUD={productosCRUD}
+                selectedProducto={selectedProducto}
+                mamparasTipos={mamparasTipos}
+                mamparasTiposCRUD={mamparasTiposCRUD}
+                selectedMamparaTipo={selectedMamparaTipo}
+                tiposVanitory={tiposVanitory}
+                tiposVanitoryRUD={tiposVanitoryRUD}
+                selectedTipoVanitory={selectedTipoVanitory}
+                colocaciones={colocaciones ?? []}
+                colocacionesCRUD={colocacionesCRUD}
+                selectedColocacion={selectedColocacion}
+                tiposEscritorio={tiposEscritorio}
+                tiposEscritorioRUD={tiposEscritorioRUD}
+                selectedTipoEscritorio={selectedTipoEscritorio}
+                tiposDespensero={tiposDespensero}
+                tiposDespenseroRUD={tiposDespenseroRUD}
+                selectedTipoDespensero={selectedTipoDespensero}
+                formulas={formulas}
+                formulasCRUD={formulasCRUD}
+                selectedFormula={selectedFormula}
+                margen={margen}
+                margenCRUD={margenCRUD}
+                selectedMargen={selectedMargen}
+                presupuestosMamparas={presupuestosMamparas}
+                presupuestosMamparasCRUD={presupuestosMamparasCRUD}
+                selectedPresupuestoMampara={selectedPresupuestoMampara}
+                asociaciones={asociaciones}
+                asociacionesCRUD={asociacionesCRUD}
+                selectedAsociacion={selectedAsociacion}
+                asociacionesForm={asociacionesForm}
+                asociacionesFormCRUD={asociacionesFormCRUD}
+                selectedAsociacionForm={selectedAsociacionForm}
+              />
             )}
           </div>
         </div>
@@ -201,7 +599,9 @@ export default function App() {
   // ── PANEL PRINCIPAL ──────────────────────────────────────
   return (
     <>
-      <style>{GLOBAL_STYLE}{`
+      <style>
+        {GLOBAL_STYLE}
+        {`
         body { display: flex; align-items: center; justify-content: center; }
         .overlay { display: none; position: fixed; inset: 0; background: #00000055; z-index: 99; }
         .overlay.open { display: block; }
@@ -231,12 +631,22 @@ export default function App() {
         .sum-chip { background: #fff; border: 1px solid #a0cce8; border-radius: 20px; padding: 4px 12px; font-size: 11px; color: #4a6a8c; }
         .sum-chip strong { color: #0a3a5c; }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
-      `}</style>
+      `}
+      </style>
 
-      <div className={`overlay ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebarOpen(false)} />
+      <div
+        className={`overlay ${sidebarOpen ? "open" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+      />
       <div className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <h3>Menú</h3>
         <p onClick={() => setScreen("clientes")}>👥 Clientes</p>
+        <p onClick={() => setScreen("presupuestos-tabla")}>
+          📋 Presupuestos Mamparas
+        </p>
+        <p onClick={() => setScreen("presupuesto-vanitory")}>
+          🚿 Presupuesto Vanitory
+        </p>
         <p onClick={() => setScreen("productos")}>🛒 Productos</p>
         <p>⚙️ Configuración</p>
         <p>📊 Reportes</p>
@@ -248,12 +658,18 @@ export default function App() {
             <h1 className="title">Panel de Control</h1>
             <p className="subtitle">Sistema integral</p>
           </div>
-          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>☰</button>
+          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
+            ☰
+          </button>
         </div>
 
         <div className="data-summary">
-          <span className="sum-chip">👥 <strong>{clientes.length}</strong> clientes</span>
-          <span className="sum-chip">🛒 <strong>{productos.length}</strong> productos</span>
+          <span className="sum-chip">
+            👥 <strong>{clientes.length}</strong> clientes
+          </span>
+          <span className="sum-chip">
+            🛒 <strong>{productos.length}</strong> productos
+          </span>
         </div>
 
         <div className="grid">
@@ -274,7 +690,11 @@ export default function App() {
           {log.length === 0 ? (
             <p className="log-item">— sin actividad —</p>
           ) : (
-            log.map((entry, i) => <p key={i} className="log-item">{entry}</p>)
+            log.map((entry, i) => (
+              <p key={i} className="log-item">
+                {entry}
+              </p>
+            ))
           )}
         </div>
       </div>

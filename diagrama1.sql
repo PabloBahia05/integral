@@ -1,0 +1,101 @@
+CREATE TABLE IF NOT EXISTS `PRODUCTOS` (
+	`id` INTEGER NOT NULL AUTO_INCREMENT UNIQUE,
+	`codart` VARCHAR(255),
+	`articulo` TEXT(65535),
+	`area` TEXT(65535),
+	`artfoto` VARCHAR(255),
+	`precio` DECIMAL,
+	`precio-21` DECIMAL,
+	`precio+10` DECIMAL,
+	`precio+10+10` DECIMAL,
+	`precio+10+15` DECIMAL,
+	`preciorep` DECIMAL,
+	PRIMARY KEY(`codart`)
+);
+
+
+CREATE TABLE IF NOT EXISTS `CLIENTES` (
+	`id` INTEGER NOT NULL AUTO_INCREMENT UNIQUE,
+	`codcliente` INTEGER,
+	`nombre` TEXT(65535),
+	`domicilio fiscal` TEXT(65535),
+	`codloc` INTEGER,
+	`telefono1` NUMERIC,
+	`telefono2` NUMERIC,
+	`wapp` NUMERIC,
+	`domrem` TEXT(65535),
+	`ubicacion` TEXT(65535),
+	`cuit` NUMERIC,
+	`dni` NUMERIC,
+	`tipofact` TEXT(65535),
+	`profesional` TEXT(65535),
+	`localidad` TEXT(65535),
+	`codpostal` INTEGER,
+	PRIMARY KEY(`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `PRESUPUESTOS_MAMPARAS` (
+	`id` INTEGER NOT NULL AUTO_INCREMENT UNIQUE,
+	`NOMBRE` TEXT(65535),
+	`FECHA` DATE,
+	`CANTIDAD` INTEGER,
+	`MODELO` VARCHAR(255),
+	`ANCHO` DECIMAL,
+	`ALTO` DECIMAL,
+	`VIDRIO` TEXT(65535),
+	`COLOCACION` DECIMAL,
+	PRIMARY KEY(`id`)
+);
+
+
+CREATE TABLE IF NOT EXISTS `MAMPARAS_TIPOS` (
+	`id` INTEGER NOT NULL AUTO_INCREMENT UNIQUE,
+	`NOMBRE` VARCHAR(255),
+	`CODFORMV` VARCHAR(255),
+    `FORMULA_VIDRIO` VARCHAR(255),
+    `CODFORMH` VARCHAR(255),
+    `FORMULA_HERRAJE` VARCHAR(255),
+    
+	PRIMARY KEY(`id`)
+);
+ALTER TABLE mamparas_tipos 
+  MODIFY NOMBRE VARCHAR(255),
+  CHANGE CODFORMULA CODFORMV VARCHAR(255),
+  ADD COLUMN FORMULA_VIDRIO VARCHAR(255),
+  ADD COLUMN CODFORMH VARCHAR(255),
+  ADD COLUMN FORMULA_HERRAJE VARCHAR(255);
+SELECT * FROM articulos;
+TRUNCATE TABLE articulos;
+TRUNCATE TABLE diagrama1.productos;
+ALTER TABLE articulos
+ADD codrub VARCHAR(255) AFTER codfam;
+RENAME COLUMN FORMULA TO formula;
+ALTER TABLE formulas
+ADD FOREIGN KEY (codart) REFERENCES articulos(codart);
+
+describe articulos;
+ALTER TABLE articulos
+DROP PRIMARY KEY;
+ALTER TABLE articulos
+ADD PRIMARY KEY (codart);
+ALTER TABLE articulos
+ADD PRIMARY KEY (codart);
+
+SELECT *
+FROM articulos
+WHERE codart IN (
+    SELECT codart
+    FROM articulos
+    GROUP BY codart
+    HAVING COUNT(*) > 1
+)
+ORDER BY codart;
+
+UPDATE articulos a
+JOIN (
+    SELECT id,
+           ROW_NUMBER() OVER (PARTITION BY codart ORDER BY id) AS fila
+    FROM articulos
+) t ON a.id = t.id
+SET a.codart = CONCAT(a.codart, '-', t.fila)
+WHERE t.fila > 1;

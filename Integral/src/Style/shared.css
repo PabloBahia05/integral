@@ -186,5 +186,253 @@ body { background: #cce7f9; min-height: 100vh; font-family: 'Space Mono', monosp
   object-fit: contain;
 }
 
+/* ── Foto upload (drag & drop) ── */
+.foto-dropzone {
+  border: 2px dashed #a0cce8;
+  border-radius: 3px;
+  padding: 14px;
+  cursor: pointer;
+  min-height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  transition: border-color 0.2s, background 0.2s;
+}
+.foto-dropzone:hover {
+  border-color: #2277bb;
+  background: #f0f8ff;
+}
+.foto-dropzone--active {
+  border-color: #2277bb;
+  background: #ddf0fb;
+}
+.foto-preview {
+  max-width: 100%;
+  max-height: 150px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+.foto-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #88aacc;
+  pointer-events: none;
+}
+.foto-icon { font-size: 2rem; line-height: 1; }
+.foto-hint {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-align: center;
+  color: #88aacc;
+}
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ── Grilla de items de presupuesto ──────────────────────────────────── */
+.presup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.presup-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 32px 20px;
+  background: #fff;
+  border: 1px solid #a0cce8;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: 'Space Mono', monospace;
+  position: relative;
+  overflow: hidden;
+}
+
+.presup-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0;
+  width: 0; height: 3px;
+  background: #2277bb;
+  transition: width 0.2s ease;
+}
+
+.presup-card:hover {
+  border-color: #2277bb;
+  background: #e8f5fd;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px #2277bb22;
+}
+
+.presup-card:hover::after { width: 100%; }
+.presup-card:active { transform: scale(0.97); }
+
+.presup-icon { font-size: 2.4rem; line-height: 1; }
+
+.presup-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #0a3a5c;
+  text-align: center;
+}
+
+/* ── Ver Tablas: botón volver ────────────────────────────────────────── */
+.ver-tablas-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 24px;
+  padding: 8px 16px;
+  background: none;
+  border: 1px solid #a0cce8;
+  border-radius: 3px;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: #6699bb;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ver-tablas-back:hover {
+  border-color: #0a3a5c;
+  color: #0a3a5c;
+  background: #e8f5fd;
+}
+
+/* Acento dinámico para cards de tablas */
+.ver-tablas-card:hover {
+  border-color: var(--card-accent, #2277bb);
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--card-accent, #2277bb) 20%, transparent);
+}
+.ver-tablas-card::after {
+  background: var(--card-accent, #2277bb) !important;
+}
+
+/* ── Formulario Mampara ───────────────────────────────────────────────── */
+.formmampara-wrap {
+  max-width: 520px;
+}
+
+.formmampara-body {
+  background: #fff;
+  border: 1px solid #a0cce8;
+  border-radius: 4px;
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formmampara-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Selector de vidrio */
+.formmampara-vidrio {
+  display: flex;
+  gap: 10px;
+}
+
+.formmampara-vidrio-btn {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #a0cce8;
+  border-radius: 3px;
+  background: #fff;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: #4a6a8c;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.formmampara-vidrio-btn:hover {
+  border-color: #2277bb;
+  background: #e8f5fd;
+}
+
+.formmampara-vidrio-btn.selected {
+  background: #0a3a5c;
+  border-color: #0a3a5c;
+  color: #60efff;
+  font-weight: 700;
+}
+
+/* Resultado */
+.formmampara-resultado {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #e8f5fd;
+  border: 1px solid #2277bb;
+  border-radius: 4px;
+  padding: 16px 20px;
+  margin-top: 8px;
+}
+
+.formmampara-resultado-label {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #6699bb;
+}
+
+.formmampara-resultado-valor {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0a3a5c;
+}
+
+/* Mensaje éxito */
+.formmampara-exito {
+  font-size: 12px;
+  color: #00a085;
+  background: #e6faf7;
+  border: 1px solid #00c9a7;
+  border-radius: 3px;
+  padding: 8px 12px;
+}
+
+/* ── Desglose vidrio/heraje/total ─────────────────────────────────────── */
+.formmampara-desglose {
+  border: 1px solid #a0cce8;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.formmampara-desglose-fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-family: 'Space Mono', monospace;
+  color: #2a4a6c;
+  border-bottom: 1px solid #e8f0f8;
+  background: #fff;
+}
+
+.formmampara-desglose-fila span { color: #88aacc; font-size: 11px; }
+
+.formmampara-desglose-total {
+  background: #0a3a5c;
+  border-bottom: none;
+}
+
+.formmampara-desglose-total span  { color: #60efff; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+.formmampara-desglose-total strong { color: #fff; font-family: 'Syne', sans-serif; font-size: 1.3rem; font-weight: 800; }
