@@ -4,7 +4,15 @@ import PresupuestoMuebles from "./screens/PresupuestoMuebles";
 import PresupuestoMamparas from "./screens/PresupuestoMamparas";
 import VerTablas from "./screens/VerTablas";
 import Margen from "./screens/Margen";
+import Lista from "./screens/Lista";
 import PresupuestosMamparasTabla from "./screens/PresupuestosMamparasTabla";
+import TiposVanitory from "./screens/TiposVanitory";
+import ArmarVanitory from "./screens/ArmarVanitory";
+import BreakdownFormulasVanitory from "./screens/BreakdownFormulasVanitory";
+import PresupuestosVanitoryTabla from "./screens/PresupuestosVanitoryTabla";
+import PresupuestoAmoblamiento from "./screens/PresupuestoAmoblamiento";
+import PresupuestoNuevo from "./screens/PresupuestoNuevo";
+import PresupuestosNuevoTabla from "./screens/PresupuestosNuevoTabla";
 import ActionButton from "./Component/ActionButton";
 import { useEffect, useState } from "react";
 
@@ -18,65 +26,25 @@ const SCREENS = {
   "ver-tablas": { label: "VER TABLAS", icon: "🗃️" },
   "presupuestos-tabla": { label: "PRESUPUESTOS MAMPARAS", icon: "📋" },
   "presupuesto-vanitory": { label: "PRESUPUESTO VANITORY", icon: "🚿" },
+  "presupuestos-vanitory-tabla": { label: "PRESUPUESTOS VANITORY", icon: "🛁" },
+  "presupuesto-amoblamiento": { label: "PRESUPUESTO AMOBLAMIENTO", icon: "🪑" },
+  "presupuesto-nuevo": { label: "PRESUPUESTO NUEVO", icon: "📝" },
+  "lista-margenes":       { label: "LISTA DE MÁRGENES", icon: "📊" },
+  "presupuestos-nuevo-tabla": { label: "PRESUPUESTOS", icon: "📋" },
 };
 
 const buttons = [
-  {
-    id: 1,
-    label: "CLIENTES",
-    icon: "👥",
-    color: "#eb56d7",
-    screen: "clientes",
-  },
-  {
-    id: 2,
-    label: "PRODUCTOS",
-    icon: "🛒",
-    color: "#ff6b6b",
-    screen: "productos",
-  },
-  {
-    id: 4,
-    label: "PRESUPUESTO MUEBLES",
-    icon: "🪵",
-    color: "#ffd93d",
-    screen: "presupuesto-muebles",
-  },
-  {
-    id: 5,
-    label: "PRESUPUESTO MAMPARAS",
-    icon: "🪟",
-    color: "#c77dff",
-    screen: "presupuesto-mamparas",
-  },
-  {
-    id: 6,
-    label: "ELIMINAR",
-    icon: "🗑",
-    color: "#ff9a3c",
-    action: "eliminar",
-  },
-  {
-    id: 7,
-    label: "VER TABLAS",
-    icon: "🗃️",
-    color: "#00c9a7",
-    screen: "ver-tablas",
-  },
-  {
-    id: 8,
-    label: "PRESUP. MAMPARAS",
-    icon: "📋",
-    color: "#4361ee",
-    screen: "presupuestos-tabla",
-  },
-  {
-    id: 9,
-    label: "PRESUP. VANITORY",
-    icon: "🚿",
-    color: "#06d6a0",
-    screen: "presupuesto-vanitory",
-  },
+  { id: 1, label: "CLIENTES", icon: "👥", color: "#eb56d7", screen: "clientes" },
+  { id: 2, label: "PRODUCTOS", icon: "🛒", color: "#ff6b6b", screen: "productos" },
+  { id: 4, label: "PRESUPUESTO MUEBLES", icon: "🪵", color: "#ffd93d", screen: "presupuesto-muebles" },
+  { id: 5, label: "PRESUPUESTO MAMPARAS", icon: "🪟", color: "#c77dff", screen: "presupuesto-mamparas" },
+  { id: 6, label: "PRESUP. NUEVO", icon: "📝", color: "#ff9a3c", screen: "presupuesto-nuevo" },
+  { id: 7, label: "VER TABLAS", icon: "🗃️", color: "#00c9a7", screen: "ver-tablas" },
+  { id: 8, label: "PRESUP. MAMPARAS", icon: "📋", color: "#4361ee", screen: "presupuestos-tabla" },
+  { id: 9, label: "PRESUP. VANITORY", icon: "🚿", color: "#06d6a0", screen: "presupuesto-vanitory" },
+  { id: 10, label: "REGISTRO VANITORY", icon: "🛁", color: "#f4845f", screen: "presupuestos-vanitory-tabla" },
+  { id: 11, label: "PRESUP. AMOBLAMIENTO", icon: "🪑", color: "#7b61ff", screen: "presupuesto-amoblamiento" },
+  { id: 12, label: "LISTA MÁRGENES", icon: "📊", color: "#20b2aa", screen: "lista-margenes" },
 ];
 
 export default function App() {
@@ -94,9 +62,11 @@ export default function App() {
   const [tiposDespensero, setTiposDespensero] = useState([]);
   const [formulas, setFormulas] = useState([]);
   const [margen, setMargen] = useState([]);
+  const [listas, setListas] = useState([]);
   const [presupuestosMamparas, setPresupuestosMamparas] = useState([]);
-  const [selectedPresupuestoMampara, setSelectedPresupuestoMampara] =
-    useState(null);
+  const [selectedPresupuestoMampara, setSelectedPresupuestoMampara] = useState(null);
+  const [presupuestosVanitory, setPresupuestosVanitory] = useState([]);
+  const [selectedPresupuestoVanitory, setSelectedPresupuestoVanitory] = useState(null);
   const [asociaciones, setAsociaciones] = useState([]);
   const [selectedAsociacion, setSelectedAsociacion] = useState(null);
   const [asociacionesForm, setAsociacionesForm] = useState([]);
@@ -111,82 +81,68 @@ export default function App() {
   const [selectedTipoDespensero, setSelectedTipoDespensero] = useState(null);
   const [selectedFormula, setSelectedFormula] = useState(null);
   const [selectedMargen, setSelectedMargen] = useState(null);
+  const [selectedLista, setSelectedLista] = useState(null);
   const [modal, setModal] = useState(null);
+
+  // ── Proveedores ──────────────────────────────────────────
+  const [proveedores, setProveedores] = useState([]);
+  const [selectedProveedor, setSelectedProveedor] = useState(null);
+
+  // ── Navegación interna Vanitory ──────────────────────────
+  const [vanitoryVista, setVanitoryVista] = useState("tipos");
+  const [vanitoryModelo, setVanitoryModelo] = useState(null);
+  // ── Navegación interna Amoblamiento ─────────────────────
+  const [amoblamientoVista, setAmoblamientoVista] = useState("selector");
+  const [presupuestoAbierto, setPresupuestoAbierto] = useState(null);
 
   const addLog = (msg) => setLog((prev) => [msg, ...prev.slice(0, 4)]);
 
   // ── Cargar datos ─────────────────────────────────────────
   const fetchClientes = () =>
-    fetch(`${API}/clientes`)
-      .then((r) => r.json())
-      .then(setClientes)
-      .catch(console.error);
+    fetch(`${API}/clientes`).then((r) => r.json()).then(setClientes).catch(console.error);
 
   const fetchProductos = () =>
-    fetch(`${API}/productos`)
-      .then((r) => r.json())
-      .then(setProductos)
-      .catch(console.error);
+    fetch(`${API}/productos`).then((r) => r.json()).then(setProductos).catch(console.error);
 
   const fetchMamparasTipos = () =>
-    fetch(`${API}/mamparas-tipos`)
-      .then((r) => r.json())
-      .then(setMamparasTipos)
-      .catch(console.error);
+    fetch(`${API}/mamparas-tipos`).then((r) => r.json()).then(setMamparasTipos).catch(console.error);
 
   const fetchTiposVanitory = () =>
-    fetch(`${API}/vanitory-tipos`)
-      .then((r) => r.json())
-      .then(setTiposVanitory)
-      .catch(console.error);
+    fetch(`${API}/vanitory-tipos`).then((r) => r.json()).then(setTiposVanitory).catch(console.error);
 
   const fetchTiposEscritorio = () =>
-    fetch(`${API}/escritorio-tipos`)
-      .then((r) => r.json())
-      .then(setTiposEscritorio)
-      .catch(console.error);
+    fetch(`${API}/escritorio-tipos`).then((r) => r.json()).then(setTiposEscritorio).catch(console.error);
 
   const fetchColocaciones = () =>
-    fetch(`${API}/colocacion`)
-      .then((r) => r.json())
-      .then(setColocaciones)
-      .catch(console.error);
+    fetch(`${API}/colocacion`).then((r) => r.json()).then(setColocaciones).catch(console.error);
 
   const fetchTiposDespensero = () =>
-    fetch(`${API}/despensero-tipos`)
-      .then((r) => r.json())
-      .then(setTiposDespensero)
-      .catch(console.error);
+    fetch(`${API}/despensero-tipos`).then((r) => r.json()).then(setTiposDespensero).catch(console.error);
 
   const fetchPresupuestosMamparas = () =>
-    fetch(`${API}/presupuestos-mamparas`)
-      .then((r) => r.json())
-      .then(setPresupuestosMamparas)
-      .catch(console.error);
+    fetch(`${API}/presupuestos-mamparas`).then((r) => r.json()).then(setPresupuestosMamparas).catch(console.error);
+
+  const fetchPresupuestosVanitory = () =>
+    fetch(`${API}/presupuestos-vanitory`).then((r) => r.json()).then(setPresupuestosVanitory).catch(console.error);
 
   const fetchMargen = () =>
-    fetch(`${API}/margen`)
-      .then((r) => r.json())
-      .then(setMargen)
-      .catch(console.error);
+    fetch(`${API}/margen`).then((r) => r.json()).then(setMargen).catch(console.error);
 
   const fetchFormulas = () =>
-    fetch(`${API}/formulas`)
-      .then((r) => r.json())
-      .then(setFormulas)
-      .catch(console.error);
+    fetch(`${API}/formulas`).then((r) => r.json()).then(setFormulas).catch(console.error);
 
   const fetchAsociaciones = () =>
-    fetch(`${API}/asociaciones`)
-      .then((r) => r.json())
-      .then(setAsociaciones)
-      .catch(console.error);
+    fetch(`${API}/asociaciones`).then((r) => r.json()).then(setAsociaciones).catch(console.error);
 
   const fetchAsociacionesForm = () =>
-    fetch(`${API}/asociaciones-form`)
-      .then((r) => r.json())
-      .then(setAsociacionesForm)
-      .catch(console.error);
+    fetch(`${API}/asociaciones-form`).then((r) => r.json()).then(setAsociacionesForm).catch(console.error);
+
+  const fetchListas = () =>
+    fetch(`${API}/lista`).then((r) => r.json()).then(setListas).catch(console.error);
+
+  // ── NUEVO: fetch proveedores ─────────────────────────────
+  const fetchProveedores = () =>
+    fetch(`${API}/proveedores`).then((r) => r.json()).then(setProveedores).catch(console.error);
 
   useEffect(() => {
     fetchClientes();
@@ -199,24 +155,23 @@ export default function App() {
     fetchFormulas();
     fetchMargen();
     fetchPresupuestosMamparas();
+    fetchPresupuestosVanitory();
     fetchAsociaciones();
     fetchAsociacionesForm();
+    fetchListas();
+    fetchProveedores(); // ← NUEVO
   }, []);
 
   // ── Selección activa ─────────────────────────────────────
   const currentSelected =
-    screen === "clientes"
-      ? selectedCliente
-      : screen === "productos"
-        ? selectedProducto
-        : null;
+    screen === "clientes" ? selectedCliente
+    : screen === "productos" ? selectedProducto
+    : null;
 
   // ── CRUD con fetch al servidor ───────────────────────────
   const makeCRUD = (endpoint, get, set, selectFn, fetchFn, name) => ({
     onSave: async (item) => {
-      // exists: si tiene id es edición (para productos con paginación el array local puede estar vacío)
       const exists = !!item.id;
-      // _skipPost: el componente ya hizo el POST directamente (ej: Formulas con validación de duplicado)
       if (item._skipPost) {
         await fetchFn();
         setModal(null);
@@ -225,7 +180,6 @@ export default function App() {
       }
       try {
         if (exists) {
-          // Editar — quitar el id del body
           const { id, ...body } = item;
           const res = await fetch(`${API}/${endpoint}/${id}`, {
             method: "PUT",
@@ -233,13 +187,12 @@ export default function App() {
             body: JSON.stringify(body),
           });
           if (!res.ok) {
-            const errText = await res.text();
-            console.error(`PUT error ${endpoint}:`, errText);
-            throw new Error(errText);
+            const t = await res.text();
+            console.error(`PUT error ${endpoint}:`, t);
+            throw new Error(t);
           }
-          addLog(`✏️ ${name} actualizado: ${item.nombre ?? item.articulo}`);
+          addLog(`✏️ ${name} actualizado: ${item.nombre ?? item.lista ?? item.articulo ?? item.provnombre}`);
         } else {
-          // Crear — quitar id para que MySQL lo autogenere
           const { id, ...body } = item;
           const res = await fetch(`${API}/${endpoint}`, {
             method: "POST",
@@ -247,9 +200,9 @@ export default function App() {
             body: JSON.stringify(body),
           });
           if (!res.ok) throw new Error(await res.text());
-          addLog(`💾 ${name} guardado: ${item.nombre ?? item.articulo}`);
+          addLog(`💾 ${name} guardado: ${item.nombre ?? item.lista ?? item.articulo ?? item.provnombre}`);
         }
-        await fetchFn(); // refrescar tabla desde MySQL
+        await fetchFn();
         setModal(null);
         selectFn(null);
       } catch (err) {
@@ -261,11 +214,9 @@ export default function App() {
     onDelete: async (id) => {
       try {
         const item = get.find((r) => r.id === id);
-        const res = await fetch(`${API}/${endpoint}/${id}`, {
-          method: "DELETE",
-        });
+        const res = await fetch(`${API}/${endpoint}/${id}`, { method: "DELETE" });
         if (!res.ok) throw new Error(await res.text());
-        addLog(`🗑 ${name} eliminado: ${item?.nombre ?? item?.articulo}`);
+        addLog(`🗑 ${name} eliminado: ${item?.nombre ?? item?.lista ?? item?.articulo ?? item?.provnombre}`);
         await fetchFn();
         selectFn(null);
         setModal(null);
@@ -274,107 +225,111 @@ export default function App() {
       }
     },
 
+    onAdd: async (item) => {
+      try {
+        const { id, ...body } = item;
+        const res = await fetch(`${API}/${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        addLog(`💾 ${name} creado: ${item.provnombre ?? item.nombre ?? item.articulo}`);
+        await fetchFn();
+        setModal(null);
+        selectFn(null);
+      } catch (err) {
+        console.error(`Error creando ${name}:`, err);
+        alert(`Error al crear: ${err.message}`);
+      }
+    },
+
+    onEdit: async (item) => {
+      try {
+        const { id, ...body } = item;
+        const res = await fetch(`${API}/${endpoint}/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        addLog(`✏️ ${name} actualizado: ${item.provnombre ?? item.nombre ?? item.articulo}`);
+        await fetchFn();
+        setModal(null);
+        selectFn(null);
+      } catch (err) {
+        console.error(`Error editando ${name}:`, err);
+        alert(`Error al editar: ${err.message}`);
+      }
+    },
+
     onSelect: (row) => selectFn(row?.id === currentSelected?.id ? null : row),
     onOpenModal: setModal,
     onCloseModal: () => setModal(null),
   });
 
-  const clientesCRUD = makeCRUD(
-    "clientes",
-    clientes,
-    setClientes,
-    setSelectedCliente,
-    fetchClientes,
-    "Cliente",
-  );
-  const colocacionesCRUD = makeCRUD(
-    "colocacion",
-    colocaciones,
-    setColocaciones,
-    setSelectedColocacion,
-    fetchColocaciones,
-    "Colocación",
-  );
-  const productosCRUD = makeCRUD(
-    "productos",
-    productos,
-    setProductos,
-    setSelectedProducto,
-    fetchProductos,
-    "Producto",
-  );
-  const mamparasTiposCRUD = makeCRUD(
-    "mamparas-tipos",
-    mamparasTipos,
-    setMamparasTipos,
-    setSelectedMamparaTipo,
-    fetchMamparasTipos,
-    "Tipo de mampara",
-  );
-  const tiposVanitoryRUD = makeCRUD(
-    "vanitory-tipos",
-    tiposVanitory,
-    setTiposVanitory,
-    setSelectedTipoVanitory,
-    fetchTiposVanitory,
-    "Tipo de vanitory",
-  );
-  const tiposEscritorioRUD = makeCRUD(
-    "escritorio-tipos",
-    tiposEscritorio,
-    setTiposEscritorio,
-    setSelectedTipoEscritorio,
-    fetchTiposEscritorio,
-    "Tipo de escritorio",
-  );
-  const tiposDespenseroRUD = makeCRUD(
-    "despensero-tipos",
-    tiposDespensero,
-    setTiposDespensero,
-    setSelectedTipoDespensero,
-    fetchTiposDespensero,
-    "Tipo de despensero",
-  );
-  const formulasCRUD = makeCRUD(
-    "formulas",
-    formulas,
-    setFormulas,
-    setSelectedFormula,
-    fetchFormulas,
-    "Fórmula",
-  );
-  const presupuestosMamparasCRUD = makeCRUD(
-    "presupuestos-mamparas",
-    presupuestosMamparas,
-    setPresupuestosMamparas,
-    setSelectedPresupuestoMampara,
-    fetchPresupuestosMamparas,
-    "Presupuesto Mampara",
-  );
-  const margenCRUD = makeCRUD(
-    "margen",
-    margen,
-    setMargen,
-    setSelectedMargen,
-    fetchMargen,
-    "Margen",
-  );
-  const asociacionesCRUD = makeCRUD(
-    "asociaciones",
-    asociaciones,
-    setAsociaciones,
-    setSelectedAsociacion,
-    fetchAsociaciones,
-    "Asociación",
-  );
-  const asociacionesFormCRUD = makeCRUD(
-    "asociaciones-form",
-    asociacionesForm,
-    setAsociacionesForm,
-    setSelectedAsociacionForm,
-    fetchAsociacionesForm,
-    "Asociación de Fórmula",
-  );
+  const clientesCRUD = makeCRUD("clientes", clientes, setClientes, setSelectedCliente, fetchClientes, "Cliente");
+  const colocacionesCRUD = makeCRUD("colocacion", colocaciones, setColocaciones, setSelectedColocacion, fetchColocaciones, "Colocación");
+  const productosCRUD = makeCRUD("productos", productos, setProductos, setSelectedProducto, fetchProductos, "Producto");
+  const mamparasTiposCRUD = makeCRUD("mamparas-tipos", mamparasTipos, setMamparasTipos, setSelectedMamparaTipo, fetchMamparasTipos, "Tipo de mampara");
+  const tiposVanitoryRUD = makeCRUD("vanitory-tipos", tiposVanitory, setTiposVanitory, setSelectedTipoVanitory, fetchTiposVanitory, "Tipo de vanitory");
+  const tiposEscritorioRUD = makeCRUD("escritorio-tipos", tiposEscritorio, setTiposEscritorio, setSelectedTipoEscritorio, fetchTiposEscritorio, "Tipo de escritorio");
+  const tiposDespenseroRUD = makeCRUD("despensero-tipos", tiposDespensero, setTiposDespensero, setSelectedTipoDespensero, fetchTiposDespensero, "Tipo de despensero");
+  const formulasCRUD = makeCRUD("formulas", formulas, setFormulas, setSelectedFormula, fetchFormulas, "Fórmula");
+  const presupuestosMamparasCRUD = makeCRUD("presupuestos-mamparas", presupuestosMamparas, setPresupuestosMamparas, setSelectedPresupuestoMampara, fetchPresupuestosMamparas, "Presupuesto Mampara");
+  const presupuestosVanitoryCRUD = makeCRUD("presupuestos-vanitory", presupuestosVanitory, setPresupuestosVanitory, setSelectedPresupuestoVanitory, fetchPresupuestosVanitory, "Presupuesto Vanitory");
+  const margenCRUD = makeCRUD("margen", margen, setMargen, setSelectedMargen, fetchMargen, "Margen");
+  const asociacionesCRUD = makeCRUD("asociaciones", asociaciones, setAsociaciones, setSelectedAsociacion, fetchAsociaciones, "Asociación");
+  const asociacionesFormCRUD = makeCRUD("asociaciones-form", asociacionesForm, setAsociacionesForm, setSelectedAsociacionForm, fetchAsociacionesForm, "Asociación de Fórmula");
+
+  // ── NUEVO: CRUD Proveedores ──────────────────────────────
+  const proveedoresCRUD = makeCRUD("proveedores", proveedores, setProveedores, setSelectedProveedor, fetchProveedores, "Proveedor");
+
+  // ── CRUD Lista de Márgenes (definido explícitamente) ─────
+  const handleSaveLista = async (item) => {
+    const exists = !!item.id;
+    try {
+      if (exists) {
+        const { id, ...body } = item;
+        const res = await fetch(`${API}/lista/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        addLog(`✏️ Lista actualizada: ${item.lista}`);
+      } else {
+        const { id, ...body } = item;
+        const res = await fetch(`${API}/lista`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        addLog(`💾 Lista guardada: ${item.lista}`);
+      }
+      await fetchListas();
+      setModal(null);
+      setSelectedLista(null);
+    } catch (err) {
+      console.error("Error guardando lista:", err);
+      alert(`Error al guardar: ${err.message}`);
+    }
+  };
+
+  const handleDeleteLista = async (id) => {
+    try {
+      const item = listas.find((r) => r.id === id);
+      const res = await fetch(`${API}/lista/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+      addLog(`🗑 Lista eliminada: ${item?.lista}`);
+      await fetchListas();
+      setSelectedLista(null);
+      setModal(null);
+    } catch (err) {
+      console.error("Error eliminando lista:", err);
+    }
+  };
 
   // ── Botones del panel ────────────────────────────────────
   const handlePanelButton = (btn) => {
@@ -385,6 +340,11 @@ export default function App() {
       setScreen(btn.screen);
       addLog(`${btn.icon} Abriendo ${btn.label}`);
       if (btn.screen === "presupuestos-tabla") fetchPresupuestosMamparas();
+      if (btn.screen === "lista-margenes") fetchListas();
+      if (btn.screen === "presupuesto-vanitory") {
+        setVanitoryVista("tipos");
+        setVanitoryModelo(null);
+      }
       return;
     }
 
@@ -398,14 +358,10 @@ export default function App() {
       addLog(`${btn.icon} ${btn.label} — ${SCREENS[screen]?.label}`);
     }
     if (btn.action === "editar") {
-      currentSelected
-        ? setModal("editar")
-        : addLog("⚠️ Seleccioná un registro primero");
+      currentSelected ? setModal("editar") : addLog("⚠️ Seleccioná un registro primero");
     }
     if (btn.action === "eliminar") {
-      currentSelected
-        ? setModal("eliminar")
-        : addLog("⚠️ Seleccioná un registro primero");
+      currentSelected ? setModal("eliminar") : addLog("⚠️ Seleccioná un registro primero");
     }
   };
 
@@ -448,9 +404,7 @@ export default function App() {
         </style>
 
         <div className="screen-layout">
-          <div
-            className={`screen-sidebar${sidebarCollapsed ? " collapsed" : ""}`}
-          >
+          <div className={`screen-sidebar${sidebarCollapsed ? " collapsed" : ""}`}>
             <button
               className="collapse-btn"
               onClick={() => setSidebarCollapsed((c) => !c)}
@@ -458,6 +412,16 @@ export default function App() {
             >
               {sidebarCollapsed ? "▶" : "◀"}
             </button>
+            <button
+              className="side-btn"
+              onClick={() => setScreen(null)}
+              title="Inicio"
+              style={{ background: "#ffffff18", borderColor: "#60efff44", color: "#60efff", marginBottom: 4 }}
+            >
+              <span>🏠</span>
+              <span className="btn-label">&nbsp;Inicio</span>
+            </button>
+            <div className="side-divider" />
             <h3>Navegación</h3>
             {[
               "clientes",
@@ -466,12 +430,21 @@ export default function App() {
               "presupuesto-muebles",
               "presupuesto-vanitory",
               "presupuestos-tabla",
+              "presupuestos-vanitory-tabla",
+              "presupuesto-amoblamiento",
+              "presupuesto-nuevo",
+              "presupuestos-nuevo-tabla",
               "ver-tablas",
+              "lista-margenes",
             ].map((s) => (
               <button
                 key={s}
                 className={`side-btn ${screen === s ? "active" : ""}`}
-                onClick={() => { setScreen(s); if (s === "presupuestos-tabla") fetchPresupuestosMamparas(); }}
+                onClick={() => {
+                  setScreen(s);
+                  if (s === "presupuestos-tabla") fetchPresupuestosMamparas();
+                  if (s === "lista-margenes") fetchListas();
+                }}
                 title={SCREENS[s].label}
               >
                 <span>{SCREENS[s].icon}</span>
@@ -494,42 +467,43 @@ export default function App() {
             </button>
             <button
               className="side-btn"
-              style={{
-                opacity: sel ? 1 : 0.4,
-                color: sel ? "#ff9999" : undefined,
-              }}
+              style={{ opacity: sel ? 1 : 0.4, color: sel ? "#ff9999" : undefined }}
               onClick={() => sel && setModal("eliminar")}
             >
               <span>🗑</span>
               <span className="btn-label">&nbsp;Eliminar seleccionado</span>
             </button>
             <div className="side-divider" />
-            <button
-              className="side-btn side-back"
-              onClick={() => setScreen(null)}
-            >
-              <span>←</span>
-              <span className="btn-label">&nbsp;Volver al panel</span>
-            </button>
           </div>
 
           <div className="screen-main">
             {screen === "clientes" && (
-              <Clientes
-                clientes={clientes}
-                selected={sel}
-                modal={modal}
-                {...crud}
-              />
+              <Clientes clientes={clientes} selected={sel} modal={modal} {...crud} />
             )}
             {screen === "productos" && (
               <Productos selected={sel} modal={modal} {...crud} />
             )}
-            {(screen === "presupuesto-muebles" ||
-              screen === "presupuesto-vanitory") && (
-              <PresupuestoMuebles
-                onSelectItem={(item) => console.log("Mueble:", item)}
+            {screen === "presupuesto-muebles" && (
+              <PresupuestoMuebles onSelectItem={(item) => console.log("Mueble:", item)} />
+            )}
+            {screen === "presupuesto-vanitory" && vanitoryVista === "tipos" && (
+              <TiposVanitory
+                tiposVanitory={tiposVanitory}
+                selected={selectedTipoVanitory}
+                modal={modal}
+                {...tiposVanitoryRUD}
+                onArmar={(modelo) => { setVanitoryModelo(modelo); setVanitoryVista("armar"); }}
+                onPrueba={() => setVanitoryVista("breakdown")}
               />
+            )}
+            {screen === "presupuesto-vanitory" && vanitoryVista === "armar" && (
+              <ArmarVanitory
+                modelo={vanitoryModelo}
+                onVolver={() => { setVanitoryVista("tipos"); setVanitoryModelo(null); }}
+              />
+            )}
+            {screen === "presupuesto-vanitory" && vanitoryVista === "breakdown" && (
+              <BreakdownFormulasVanitory onVolver={() => setVanitoryVista("tipos")} />
             )}
             {screen === "presupuesto-mamparas" && (
               <PresupuestoMamparas
@@ -544,9 +518,61 @@ export default function App() {
                 modal={modal}
                 {...presupuestosMamparasCRUD}
                 onSelect={(row) =>
-                  setSelectedPresupuestoMampara(
-                    row?.id === selectedPresupuestoMampara?.id ? null : row,
-                  )
+                  setSelectedPresupuestoMampara(row?.id === selectedPresupuestoMampara?.id ? null : row)
+                }
+              />
+            )}
+            {screen === "presupuesto-nuevo" && (
+              <PresupuestoNuevo
+                onVolver={() => { setScreen(null); setPresupuestoAbierto(null); }}
+                onGuardado={() => {}}
+                onVerTabla={() => setScreen("presupuestos-nuevo-tabla")}
+                presupuestoInicial={presupuestoAbierto}
+                tiposVanitory={tiposVanitory}
+                tiposVanitoryRUD={tiposVanitoryRUD}
+              />
+            )}
+            {screen === "presupuestos-nuevo-tabla" && (
+              <PresupuestosNuevoTabla
+                onAbrirPresupuesto={(row) => {
+                  setPresupuestoAbierto(row);
+                  setScreen("presupuesto-nuevo");
+                }}
+              />
+            )}
+            {screen === "presupuesto-amoblamiento" && amoblamientoVista === "selector" && (
+              <PresupuestoAmoblamiento
+                onBuscar={() => setAmoblamientoVista("buscar")}
+                onNuevo={() => setAmoblamientoVista("nuevo")}
+                onVolver={() => setScreen(null)}
+              />
+            )}
+            {screen === "presupuesto-amoblamiento" && amoblamientoVista === "buscar" && (
+              <div style={{ padding: "40px", color: "#0a3a5c", fontFamily: "'Space Mono',monospace" }}>
+                🔍 Pantalla de búsqueda de amoblamiento — próximamente
+                <br />
+                <button style={{ marginTop: 16, cursor: "pointer" }} onClick={() => setAmoblamientoVista("selector")}>
+                  ← Volver
+                </button>
+              </div>
+            )}
+            {screen === "presupuesto-amoblamiento" && amoblamientoVista === "nuevo" && (
+              <div style={{ padding: "40px", color: "#0a3a5c", fontFamily: "'Space Mono',monospace" }}>
+                ✏️ Formulario nuevo presupuesto amoblamiento — próximamente
+                <br />
+                <button style={{ marginTop: 16, cursor: "pointer" }} onClick={() => setAmoblamientoVista("selector")}>
+                  ← Volver
+                </button>
+              </div>
+            )}
+            {screen === "presupuestos-vanitory-tabla" && (
+              <PresupuestosVanitoryTabla
+                presupuestos={presupuestosVanitory}
+                selected={selectedPresupuestoVanitory}
+                modal={modal}
+                {...presupuestosVanitoryCRUD}
+                onSelect={(row) =>
+                  setSelectedPresupuestoVanitory(row?.id === selectedPresupuestoVanitory?.id ? null : row)
                 }
               />
             )}
@@ -588,6 +614,29 @@ export default function App() {
                 asociacionesForm={asociacionesForm}
                 asociacionesFormCRUD={asociacionesFormCRUD}
                 selectedAsociacionForm={selectedAsociacionForm}
+                listas={listas}
+                onSaveLista={handleSaveLista}
+                onDeleteLista={handleDeleteLista}
+                // ── proveedores ──
+                proveedores={proveedores}
+                proveedoresCRUD={proveedoresCRUD}
+                selectedProveedor={selectedProveedor}
+              />
+            )}
+
+            {/* ── Lista de Márgenes ── */}
+            {screen === "lista-margenes" && (
+              <Lista
+                listas={listas}
+                selected={selectedLista}
+                modal={modal}
+                onSave={handleSaveLista}
+                onDelete={handleDeleteLista}
+                onOpenModal={setModal}
+                onCloseModal={() => setModal(null)}
+                onSelect={(row) =>
+                  setSelectedLista(row?.id === selectedLista?.id ? null : row)
+                }
               />
             )}
           </div>
@@ -627,27 +676,21 @@ export default function App() {
         .log-title { font-size: 10px; color: #88aacc; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
         .log-item { font-size: 12px; color: #99bbcc; padding: 4px 0; animation: fadeIn 0.3s ease; }
         .log-item:first-child { color: #2277bb; }
-        .data-summary { display: flex; gap: 8px; margin-bottom: 24px; }
+        .data-summary { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
         .sum-chip { background: #fff; border: 1px solid #a0cce8; border-radius: 20px; padding: 4px 12px; font-size: 11px; color: #4a6a8c; }
         .sum-chip strong { color: #0a3a5c; }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
       `}
       </style>
 
-      <div
-        className={`overlay ${sidebarOpen ? "open" : ""}`}
-        onClick={() => setSidebarOpen(false)}
-      />
+      <div className={`overlay ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebarOpen(false)} />
       <div className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <h3>Menú</h3>
         <p onClick={() => setScreen("clientes")}>👥 Clientes</p>
-        <p onClick={() => setScreen("presupuestos-tabla")}>
-          📋 Presupuestos Mamparas
-        </p>
-        <p onClick={() => setScreen("presupuesto-vanitory")}>
-          🚿 Presupuesto Vanitory
-        </p>
+        <p onClick={() => setScreen("presupuestos-tabla")}>📋 Presupuestos Mamparas</p>
+        <p onClick={() => setScreen("presupuesto-vanitory")}>🚿 Presupuesto Vanitory</p>
         <p onClick={() => setScreen("productos")}>🛒 Productos</p>
+        <p onClick={() => { setScreen("lista-margenes"); fetchListas(); }}>📊 Lista de Márgenes</p>
         <p>⚙️ Configuración</p>
         <p>📊 Reportes</p>
       </div>
@@ -658,18 +701,14 @@ export default function App() {
             <h1 className="title">Panel de Control</h1>
             <p className="subtitle">Sistema integral</p>
           </div>
-          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
-            ☰
-          </button>
+          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>☰</button>
         </div>
 
         <div className="data-summary">
-          <span className="sum-chip">
-            👥 <strong>{clientes.length}</strong> clientes
-          </span>
-          <span className="sum-chip">
-            🛒 <strong>{productos.length}</strong> productos
-          </span>
+          <span className="sum-chip">👥 <strong>{clientes.length}</strong> clientes</span>
+          <span className="sum-chip">🛒 <strong>{productos.length}</strong> productos</span>
+          <span className="sum-chip">📊 <strong>{listas.length}</strong> listas</span>
+          <span className="sum-chip">🏭 <strong>{proveedores.length}</strong> proveedores</span>
         </div>
 
         <div className="grid">
@@ -690,11 +729,7 @@ export default function App() {
           {log.length === 0 ? (
             <p className="log-item">— sin actividad —</p>
           ) : (
-            log.map((entry, i) => (
-              <p key={i} className="log-item">
-                {entry}
-              </p>
-            ))
+            log.map((entry, i) => <p key={i} className="log-item">{entry}</p>)
           )}
         </div>
       </div>

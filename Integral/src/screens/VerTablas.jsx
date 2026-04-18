@@ -10,8 +10,10 @@ import Formulas from "./Formulas";
 import Margen from "./Margen";
 import PresupuestosMamparasTabla from "./PresupuestosMamparasTabla";
 import Colocacion from "./Colocacion";
-import Asociaciones from "./Asociaciones"; // ← nuevo
+import Asociaciones from "./Asociaciones";
 import AsociacionesForm from "./AsociacionesForm";
+import Lista from "./Lista";
+import Proveedores from "./Proveedores"; // ← nuevo
 
 const TABLAS = [
   { id: "clientes", label: "Clientes", icon: "👥", color: "#eb56d7" },
@@ -49,13 +51,15 @@ const TABLAS = [
     color: "#4361ee",
   },
   { id: "colocacion", label: "Colocación", icon: "📐", color: "#f77f00" },
-  { id: "asociaciones", label: "Asociaciones", icon: "🔗", color: "#6a994e" }, // ← nuevo
+  { id: "asociaciones", label: "Asociaciones", icon: "🔗", color: "#6a994e" },
   {
     id: "asociaciones-form",
     label: "Asoc. Fórmulas",
     icon: "🧮",
     color: "#e63946",
   },
+  { id: "lista", label: "Lista Margen", icon: "📊", color: "#20b2aa" },
+  { id: "proveedores", label: "Proveedores", icon: "🏭", color: "#7b5ea7" }, // ← nuevo
 ];
 
 export default function VerTablas({
@@ -95,9 +99,17 @@ export default function VerTablas({
   asociacionesForm,
   asociacionesFormCRUD,
   selectedAsociacionForm,
+  listas,
+  onSaveLista,
+  onDeleteLista,
+  // ── proveedores ──
+  proveedores,
+  proveedoresCRUD,
+  selectedProveedor,
 }) {
   const [tablaActiva, setTablaActiva] = useState(null);
   const [modal, setModal] = useState(null);
+  const [selectedLista, setSelectedLista] = useState(null);
 
   const volver = () => {
     setTablaActiva(null);
@@ -240,7 +252,6 @@ export default function VerTablas({
       </div>
     );
 
-  // ── asociaciones ──
   if (tablaActiva === "asociaciones")
     return (
       <div>
@@ -256,7 +267,6 @@ export default function VerTablas({
       </div>
     );
 
-  // ── asociaciones formulas ──
   if (tablaActiva === "asociaciones-form")
     return (
       <div>
@@ -268,6 +278,40 @@ export default function VerTablas({
           modal={modal}
           {...localCRUD(asociacionesFormCRUD ?? {})}
           onSelect={(row) => asociacionesFormCRUD?.onSelect?.(row)}
+        />
+      </div>
+    );
+
+  if (tablaActiva === "lista")
+    return (
+      <div>
+        {back}
+        <Lista
+          listas={listas ?? []}
+          selected={selectedLista}
+          modal={modal}
+          onSave={onSaveLista}
+          onDelete={onDeleteLista}
+          onOpenModal={(m) => setModal(m)}
+          onCloseModal={() => setModal(null)}
+          onSelect={(row) =>
+            setSelectedLista(row?.id === selectedLista?.id ? null : row)
+          }
+        />
+      </div>
+    );
+
+  // ── proveedores ──
+  if (tablaActiva === "proveedores")
+    return (
+      <div>
+        {back}
+        <Proveedores
+          proveedores={proveedores ?? []}
+          selected={selectedProveedor}
+          modal={modal}
+          {...localCRUD(proveedoresCRUD ?? {})}
+          onSelect={(row) => proveedoresCRUD?.onSelect?.(row)}
         />
       </div>
     );

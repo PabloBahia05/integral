@@ -6,13 +6,14 @@ import ScreenHeader from "../Component/ScreenHeader";
 import ConfirmDelete from "../Component/ConfirmDelete";
 
 const COLUMNS = [
-  { key: "id",      label: "ID" },
-  { key: "codform", label: "Código fórmula" },
-  { key: "codart",  label: "Artículo vinculado" },
-  { key: "formula", label: "Fórmula" },
+  { key: "id",          label: "ID" },
+  { key: "codform",     label: "Código fórmula" },
+  { key: "codart",      label: "Artículo vinculado" },
+  { key: "descripcion", label: "Descripción" },
+  { key: "formula",     label: "Fórmula" },
 ];
 
-const EMPTY = { codform: "", codart: "", formula: "" };
+const EMPTY = { codform: "", codart: "", descripcion: "", formula: "" };
 
 const CAMPOS_ARTICULO = [
   { key: "precio",   label: "Precio" },
@@ -410,9 +411,10 @@ export default function Formulas({ formulas, onSave, onDelete, selected, onSelec
   const filtered = formulas.filter((f) => {
     const q = search.toLowerCase();
     return (
-      (f.codform  ?? "").toLowerCase().includes(q) ||
-      (f.codart   ?? "").toLowerCase().includes(q) ||
-      (f.formula  ?? "").toLowerCase().includes(q)
+      (f.codform     ?? "").toLowerCase().includes(q) ||
+      (f.codart      ?? "").toLowerCase().includes(q) ||
+      (f.descripcion ?? "").toLowerCase().includes(q) ||
+      (f.formula     ?? "").toLowerCase().includes(q)
     );
   });
 
@@ -428,9 +430,10 @@ export default function Formulas({ formulas, onSave, onDelete, selected, onSelec
   const openEdit = async () => {
     if (!selected) return;
     setForm({
-      codform: selected.codform ?? "",
-      codart:  selected.codart  ?? "",
-      formula: selected.formula ?? "",
+      codform:     selected.codform     ?? "",
+      codart:      selected.codart      ?? "",
+      descripcion: selected.descripcion ?? "",
+      formula:     selected.formula     ?? "",
     });
     setError("");
     setFamiliaElegida("");
@@ -514,6 +517,17 @@ export default function Formulas({ formulas, onSave, onDelete, selected, onSelec
               placeholder="Ej: FPF, FCORR, FBOX"
               value={form.codform}
               onChange={(e) => setForm(p => ({ ...p, codform: e.target.value }))}
+            />
+          </div>
+
+          {/* Descripción */}
+          <div className="form-group">
+            <label className="form-label">Descripción</label>
+            <input
+              className="form-input"
+              placeholder="Ej: Costo de paneles laterales, Herraje corredera simple..."
+              value={form.descripcion}
+              onChange={(e) => setForm(p => ({ ...p, descripcion: e.target.value }))}
             />
           </div>
 

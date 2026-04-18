@@ -80,6 +80,67 @@ db.connect((err) => {
 // CLIENTES  (PK: id)
 // ───────────────────────────────────────────
 
+// Búsqueda de clientes solo por nombre (LIKE) — para el campo Cliente
+// ⚠️ DEBE ir ANTES de /:id
+app.get("/clientes/buscar-nombre", (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) return res.json([]);
+  const like = `%${q.trim()}%`;
+  db.query(
+    `SELECT * FROM clientes
+     WHERE nombre LIKE ?
+     ORDER BY nombre
+     LIMIT 10`,
+    [like],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    },
+  );
+});
+
+// Búsqueda de clientes por telefono1, telefono2 o wapp (LIKE) — para el campo Teléfono
+// ⚠️ DEBE ir ANTES de /:id
+app.get("/clientes/buscar-telefono", (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) return res.json([]);
+  const like = `%${q.trim()}%`;
+  db.query(
+    `SELECT * FROM clientes
+     WHERE telefono1 LIKE ?
+        OR telefono2 LIKE ?
+        OR wapp      LIKE ?
+     ORDER BY nombre
+     LIMIT 10`,
+    [like, like, like],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    },
+  );
+});
+
+// Búsqueda combinada nombre + teléfonos — mantener por compatibilidad
+app.get("/clientes/buscar", (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) return res.json([]);
+  const like = `%${q.trim()}%`;
+  db.query(
+    `SELECT * FROM clientes
+     WHERE nombre    LIKE ?
+        OR telefono1 LIKE ?
+        OR telefono2 LIKE ?
+        OR wapp      LIKE ?
+     ORDER BY nombre
+     LIMIT 10`,
+    [like, like, like, like],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    },
+  );
+});
+
 app.get("/clientes", (req, res) => {
   db.query("SELECT * FROM clientes", (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -116,17 +177,25 @@ app.delete("/clientes/:id", (req, res) => {
 // ARTICULOS  (tabla real: articulos)
 // Expuesto como /productos para compatibilidad con el frontend
 // Columnas: id, codart, articulo, area, artfoto, precio,
-//           cantidad, ancho, alto, deposito, color
+//           cantidad, ancho, alto, linea, color
 // ───────────────────────────────────────────
 
 // Total de artículos — DEBE ir ANTES de /:id para que Express no confunda "count" con un id
 app.get("/productos/count", (req, res) => {
-  const { search } = req.query;
-  let sql = "SELECT COUNT(*) as total FROM articulos";
+  const { search, familia, rubro } = req.query;
+  let sql = "SELECT COUNT(*) as total FROM articulos WHERE 1=1";
   let params = [];
   if (search) {
-    sql += " WHERE articulo LIKE ?";
+    sql += " AND articulo LIKE ?";
     params.push(`%${search}%`);
+  }
+  if (familia) {
+    sql += " AND familia = ?";
+    params.push(familia);
+  }
+  if (rubro) {
+    sql += " AND rubro = ?";
+    params.push(rubro);
   }
   db.query(sql, params, (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -135,16 +204,24 @@ app.get("/productos/count", (req, res) => {
 });
 
 app.get("/productos", (req, res) => {
-  const { page, limit, search } = req.query;
-  let sql = "SELECT * FROM articulos";
+  const { page, limit, search, familia, rubro } = req.query;
+  let sql = "SELECT * FROM articulos WHERE 1=1";
   let params = [];
 
   if (search) {
-    sql += " WHERE articulo LIKE ?";
+    sql += " AND articulo LIKE ?";
     params.push(`%${search}%`);
   }
+  if (familia) {
+    sql += " AND familia = ?";
+    params.push(familia);
+  }
+  if (rubro) {
+    sql += " AND rubro = ?";
+    params.push(rubro);
+  }
 
-  sql += " ORDER BY id";
+  sql += " ORDER BY articulo";
 
   if (page && limit) {
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -156,6 +233,103 @@ app.get("/productos", (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(result);
   });
+});
+
+// Artículos agrupados por nombre base (sin Nº XX) con precios por línea
+// Usado en cocina/placard para el autocomplete con columnas de precios
+app.get("/articulos/por-familia", (req, res) => {
+  const { familia } = req.query;
+  if (!familia) return res.status(400).json({ error: "familia requerida" });
+
+  // Primero intentar con campo 'linea', si no existe usar SUBSTRING(codart,1,2)
+  const sql = `
+    SELECT 
+      articulo,
+      COALESCE(linea, CAST(SUBSTRING(codart, 1, 2) AS UNSIGNED)) AS linea,
+      precio
+    FROM articulos
+    WHERE (familia = ? OR familia LIKE ?)
+    ORDER BY articulo
+  `;
+  db.query(sql, [familia, `%${familia}%`], (err, rows) => {
+    if (err) {
+      console.error("Error en /articulos/por-familia:", err.message);
+      // Fallback sin campo linea
+      const sql2 = `
+        SELECT articulo,
+               CAST(SUBSTRING(codart, 1, 2) AS UNSIGNED) AS linea,
+               precio
+        FROM articulos
+        WHERE (familia = ? OR familia LIKE ?)
+        ORDER BY articulo
+      `;
+      return db.query(sql2, [familia, `%${familia}%`], (err2, rows2) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        if (rows2.length)
+          console.log(
+            "DEBUG articulo[0]:",
+            JSON.stringify(rows2[0].articulo),
+            "charCodes:",
+            [...rows2[0].articulo].slice(-6).map((c) => c.charCodeAt(0)),
+          );
+        return res.json(agrupar(rows2));
+      });
+    }
+    if (rows.length)
+      console.log(
+        "DEBUG articulo[0]:",
+        JSON.stringify(rows[0].articulo),
+        "charCodes:",
+        [...rows[0].articulo].slice(-6).map((c) => c.charCodeAt(0)),
+      );
+    res.json(agrupar(rows));
+  });
+});
+
+// Separador exacto: espacio + N + º (C2 BA en UTF-8) + espacio
+const SUFIJO_NRO = " N\u00BA "; // " Nº "
+
+function agrupar(rows) {
+  const grupos = {};
+  rows.forEach((r) => {
+    const articulo = String(r.articulo ?? "");
+    // Cortar antes del último " Nº " (usando el caracter exacto U+00BA)
+    const idx = articulo.lastIndexOf(SUFIJO_NRO);
+    const base = (idx > 0 ? articulo.substring(0, idx) : articulo).trim();
+    if (!base) return;
+    if (!grupos[base]) grupos[base] = { articulo: base, precios: {} };
+    if (r.linea != null) grupos[base].precios[String(r.linea)] = r.precio;
+  });
+  return Object.values(grupos);
+}
+
+// Valores distintos de la columna 'linea' de articulos (para selector en Presupuesto Nuevo)
+app.get("/articulos/lineas", (req, res) => {
+  db.query(
+    `SELECT DISTINCT linea FROM articulos
+     WHERE linea IS NOT NULL AND TRIM(linea) != ''
+     ORDER BY linea`,
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result.map((r) => r.linea).filter(Boolean));
+    },
+  );
+});
+
+// Familias únicas de un rubro específico (para el filtro dependiente en Productos)
+app.get("/articulos/familias-por-rubro", (req, res) => {
+  const { rubro } = req.query;
+  if (!rubro) return res.status(400).json({ error: "rubro requerido" });
+  db.query(
+    `SELECT DISTINCT familia FROM articulos
+     WHERE rubro = ? AND familia IS NOT NULL AND TRIM(familia) != ''
+     ORDER BY familia`,
+    [rubro],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result.map((r) => r.familia).filter(Boolean));
+    },
+  );
 });
 
 // Todas las familias únicas (para selector en Productos)
@@ -199,13 +373,20 @@ app.get("/articulos/rubro-de", (req, res) => {
 // Artículos filtrados por rubro y/o familia (codart + articulo + precio)
 app.get("/articulos/por-rubro", (req, res) => {
   const { rubro, familia } = req.query;
-  if (!rubro && !familia) return res.status(400).json({ error: "rubro o familia requerido" });
+  if (!rubro && !familia)
+    return res.status(400).json({ error: "rubro o familia requerido" });
 
   let sql = "SELECT codart, articulo, precio FROM articulos WHERE 1=1";
   const params = [];
 
-  if (rubro)   { sql += " AND rubro = ?";   params.push(rubro); }
-  if (familia) { sql += " AND familia = ?"; params.push(familia); }
+  if (rubro) {
+    sql += " AND rubro = ?";
+    params.push(rubro);
+  }
+  if (familia) {
+    sql += " AND familia = ?";
+    params.push(familia);
+  }
 
   sql += " ORDER BY articulo";
 
@@ -233,6 +414,22 @@ app.get("/productos/mamparas/familias", (req, res) => {
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(result.map((r) => r.familia));
+    },
+  );
+});
+
+// Buscar un artículo por codart — usado por el frontend para resolver precio_XXXX en fórmulas
+// ⚠️ DEBE ir DESPUÉS de todas las rutas /articulos/xxx estáticas para que Express no las confunda
+app.get("/articulos/:cod", (req, res) => {
+  const { cod } = req.params;
+  db.query(
+    "SELECT * FROM articulos WHERE codart = ? LIMIT 1",
+    [cod],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!result.length)
+        return res.status(404).json({ error: "No encontrado" });
+      res.json(result[0]);
     },
   );
 });
@@ -825,8 +1022,8 @@ app.delete("/colocacion/:id", (req, res) => {
 const extractArtValores = (body) => {
   const obj = {};
   for (let n = 1; n <= 10; n++) {
-    obj[`art${n}`]    = body[`art${n}`]    ?? null;
-    obj[`valor${n}`]  = body[`valor${n}`]  ?? null;
+    obj[`art${n}`] = body[`art${n}`] ?? null;
+    obj[`valor${n}`] = body[`valor${n}`] ?? null;
     obj[`margen${n}`] = body[`margen${n}`] ?? null;
   }
   return obj;
@@ -846,7 +1043,7 @@ app.get("/presupuestos-mamparas", (req, res) => {
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(result);
-    }
+    },
   );
 });
 
@@ -859,7 +1056,7 @@ app.get("/presupuestos-mamparas/proximo-numero", (req, res) => {
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ proximo: Number(result[0].proximo) });
-    }
+    },
   );
 });
 
@@ -874,7 +1071,7 @@ app.get("/presupuestos-mamparas/:numero/revisiones", (req, res) => {
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(result);
-    }
+    },
   );
 });
 
@@ -899,15 +1096,19 @@ app.post("/presupuestos-mamparas", (req, res) => {
         const item = {
           ...fields,
           ...artValores,
-          NUMERO:   Number(NUMERO),
+          NUMERO: Number(NUMERO),
           REVISION: nuevaRevision,
-          FECHA:    fields.FECHA ?? new Date().toISOString().slice(0, 10),
+          FECHA: fields.FECHA ?? new Date().toISOString().slice(0, 10),
         };
-        db.query("INSERT INTO PRESUPUESTOS_MAMPARAS SET ?", item, (err2, result) => {
-          if (err2) return res.status(500).json({ error: err2.message });
-          res.json({ id: result.insertId, ...item });
-        });
-      }
+        db.query(
+          "INSERT INTO PRESUPUESTOS_MAMPARAS SET ?",
+          item,
+          (err2, result) => {
+            if (err2) return res.status(500).json({ error: err2.message });
+            res.json({ id: result.insertId, ...item });
+          },
+        );
+      },
     );
   } else {
     // ── Presupuesto nuevo ──────────────────────────────────────────────────
@@ -928,7 +1129,7 @@ app.post("/presupuestos-mamparas", (req, res) => {
         (err2) => {
           if (err2) return res.status(500).json({ error: err2.message });
           res.json({ id: newId, NUMERO: newId, ...item });
-        }
+        },
       );
     });
   }
@@ -940,10 +1141,14 @@ app.put("/presupuestos-mamparas/:id", (req, res) => {
   const { id: _id, ...fields } = req.body;
   const artValores = extractArtValores(req.body);
   const item = { ...fields, ...artValores };
-  db.query("UPDATE PRESUPUESTOS_MAMPARAS SET ? WHERE id = ?", [item, id], (err) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ id: Number(id), ...item });
-  });
+  db.query(
+    "UPDATE PRESUPUESTOS_MAMPARAS SET ? WHERE id = ?",
+    [item, id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: Number(id), ...item });
+    },
+  );
 });
 
 // DELETE — elimina todas las revisiones de un número de presupuesto
@@ -956,7 +1161,7 @@ app.delete("/presupuestos-mamparas/:id", (req, res) => {
     (err) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ deleted: id });
-    }
+    },
   );
 });
 
@@ -1078,38 +1283,601 @@ app.delete("/asociaciones-form/:id", (req, res) => {
 // ───────────────────────────────────────────
 // FORMULAS
 // ───────────────────────────────────────────
+// PRESUPUESTOS_VANITORY
+// ───────────────────────────────────────────
 
-app.get("/formulas", (req, res) => {
-  db.query("SELECT * FROM formulas ORDER BY id", (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(result);
-  });
+app.get("/presupuestos-vanitory/proximo-numero", (req, res) => {
+  db.query(
+    "SELECT COALESCE(MAX(id), 0) + 1 AS proximo FROM presupuestos_vanitory",
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ proximo: Number(result[0].proximo) });
+    },
+  );
 });
 
-app.post("/formulas", (req, res) => {
+app.get("/presupuestos-vanitory", (req, res) => {
+  db.query(
+    "SELECT * FROM presupuestos_vanitory ORDER BY id DESC",
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    },
+  );
+});
+
+app.post("/presupuestos-vanitory", (req, res) => {
   const { id, ...item } = req.body;
-  db.query("INSERT INTO formulas SET ?", item, (err, result) => {
+  db.query("INSERT INTO presupuestos_vanitory SET ?", item, (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ id: result.insertId, ...item });
   });
 });
 
-app.put("/formulas/:id", (req, res) => {
+app.put("/presupuestos-vanitory/:id", (req, res) => {
   const { id } = req.params;
   const { id: _id, ...item } = req.body;
-  db.query("UPDATE formulas SET ? WHERE id = ?", [item, id], (err) => {
+  db.query(
+    "UPDATE presupuestos_vanitory SET ? WHERE id = ?",
+    [item, id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id, ...item });
+    },
+  );
+});
+
+app.delete("/presupuestos-vanitory/:id", (req, res) => {
+  db.query(
+    "DELETE FROM presupuestos_vanitory WHERE id = ?",
+    [req.params.id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ deleted: req.params.id });
+    },
+  );
+});
+
+// ───────────────────────────────────────────
+// PRESUPUESTOS_AMOBLAMIENTO
+// Usado por PresupuestoNuevo para guardar presupuestos generales
+// (cocina, placard, mampara, especiales)
+//
+// Columnas relevantes:
+//   id, NUMERO, NOMBRE, FECHA, LOCALIDAD, REVISION,
+//   TELEFONO1, TELEFONO2, WAPP,
+//   LISTA_PRECIO, MOSTRAR_COSTO, INCLUIR_PRECIO, INCLUIR_TOTAL,
+//   COLOR, INCLUIR_TEXTO_COLOC, AGREGAR_IVA,
+//   LINEA1..LINEA3 + _C2/_C3, LEYENDA, OBSERVACIONES
+//
+// Si la tabla ya existe sin las columnas de teléfono, ejecutar:
+//   ALTER TABLE presupuestos_amoblamiento
+//     ADD COLUMN IF NOT EXISTS TELEFONO1 VARCHAR(50) DEFAULT NULL,
+//     ADD COLUMN IF NOT EXISTS TELEFONO2 VARCHAR(50) DEFAULT NULL,
+//     ADD COLUMN IF NOT EXISTS WAPP      VARCHAR(50) DEFAULT NULL;
+// ───────────────────────────────────────────
+
+app.get("/presupuestos-amoblamiento/proximo-numero", (req, res) => {
+  db.query(
+    "SELECT COALESCE(MAX(id), 0) + 1 AS proximo FROM presupuestos_amoblamiento",
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ proximo: Number(result[0].proximo) });
+    },
+  );
+});
+
+app.get("/presupuestos-amoblamiento", (req, res) => {
+  db.query(
+    "SELECT * FROM presupuestos_amoblamiento ORDER BY id DESC",
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    },
+  );
+});
+
+app.get("/presupuestos-amoblamiento/:id", (req, res) => {
+  db.query(
+    "SELECT * FROM presupuestos_amoblamiento WHERE id = ? LIMIT 1",
+    [req.params.id],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!result.length)
+        return res.status(404).json({ error: "No encontrado" });
+      res.json(result[0]);
+    },
+  );
+});
+
+app.post("/presupuestos-amoblamiento", (req, res) => {
+  const { id, ...item } = req.body;
+  db.query(
+    "INSERT INTO presupuestos_amoblamiento SET ?",
+    item,
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      const newId = result.insertId;
+      db.query(
+        "UPDATE presupuestos_amoblamiento SET NUMERO = ? WHERE id = ?",
+        [newId, newId],
+        (err2) => {
+          if (err2) return res.status(500).json({ error: err2.message });
+          res.json({ id: newId, NUMERO: newId, ...item });
+        },
+      );
+    },
+  );
+});
+
+app.put("/presupuestos-amoblamiento/:id", (req, res) => {
+  const { id } = req.params;
+  const { id: _id, ...item } = req.body;
+  db.query(
+    "UPDATE presupuestos_amoblamiento SET ? WHERE id = ?",
+    [item, id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id, ...item });
+    },
+  );
+});
+
+app.delete("/presupuestos-amoblamiento/:id", (req, res) => {
+  db.query(
+    "DELETE FROM presupuestos_amoblamiento WHERE id = ?",
+    [req.params.id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ deleted: req.params.id });
+    },
+  );
+});
+
+// ───────────────────────────────────────────
+// TABLA_INDICE + TABLA_PRESUPUESTOS
+//
+// Modelo de datos:
+//   tabla_indice     → encabezado del presupuesto
+//     Columnas: id, numeropres, nombre, fecha, id_presupuesto, valor, revision
+//
+//   tabla_presupuestos → items/detalle del presupuesto
+//     Columnas: id, numeropres, articulo, nombrart, linea, cantidad,
+//               margen, valor, valor1, porcentaje1, valor2, porcentaje2,
+//               valor3, porcentaje3, revision
+//
+// Ambas tablas se vinculan por el campo `numeropres`.
+// El número de presupuesto es autogenerado por tabla_indice (AUTO_INCREMENT en id)
+// y luego se copia al campo numeropres de ambas tablas.
+// ───────────────────────────────────────────
+
+// Próximo número — lee el MAX de tabla_indice (fuente de verdad del número)
+// ⚠️ DEBE ir ANTES de GET /tabla-presupuestos
+app.get("/tabla-presupuestos/proximo-numero", (req, res) => {
+  db.query(
+    "SELECT COALESCE(MAX(numeropres), 0) + 1 AS proximo FROM tabla_indice",
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ proximo: Number(result[0].proximo) });
+    }
+  );
+});
+
+// GET items de tabla_presupuestos (filtrable por numeropres)
+app.get("/tabla-presupuestos", (req, res) => {
+  const { numeropres } = req.query;
+  let sql = "SELECT * FROM tabla_presupuestos";
+  const params = [];
+  if (numeropres) {
+    sql += " WHERE numeropres = ?";
+    params.push(numeropres);
+  }
+  sql += " ORDER BY id ASC";
+  db.query(sql, params, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(result);
+  });
+});
+
+// GET encabezados de tabla_indice (lista de presupuestos)
+// Soporta ?numeropres=N para traer todas las revisiones de un presupuesto
+app.get("/tabla-indice", (req, res) => {
+  const { numeropres } = req.query;
+  if (numeropres) {
+    db.query(
+      "SELECT * FROM tabla_indice WHERE numeropres = ? ORDER BY revision ASC",
+      [numeropres],
+      (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(result);
+      }
+    );
+  } else {
+    // Devuelve solo la última revisión de cada numeropres
+    db.query(
+      `SELECT t1.* FROM tabla_indice t1
+       INNER JOIN (
+         SELECT numeropres, MAX(revision) AS max_rev
+         FROM tabla_indice
+         GROUP BY numeropres
+       ) t2 ON t1.numeropres = t2.numeropres AND t1.revision = t2.max_rev
+       ORDER BY t1.id DESC`,
+      (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(result);
+      }
+    );
+  }
+});
+
+// GET un encabezado por numeropres
+app.get("/tabla-indice/:numeropres", (req, res) => {
+  db.query(
+    "SELECT * FROM tabla_indice WHERE numeropres = ? ORDER BY revision DESC LIMIT 1",
+    [req.params.numeropres],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!result.length) return res.status(404).json({ error: "No encontrado" });
+      res.json(result[0]);
+    }
+  );
+});
+
+// ── POST /tabla-presupuestos ──────────────────────────────────────────────────
+// Flujo:
+//   NUEVO presupuesto (sin numero en el body):
+//     1. Calcula el total sumando subtotales de los items
+//     2. INSERT en tabla_indice (nombre, fecha, valor=total, revision=1)
+//     3. UPDATE tabla_indice SET numeropres = id WHERE id = id  (el id es el numeropres)
+//     4. DELETE items previos de tabla_presupuestos para ese numeropres (por si acaso)
+//     5. INSERT de cada item en tabla_presupuestos con todos los campos mapeados
+//
+//   REVISIÓN (con numero en el body):
+//     1. Calcula nueva revisión = MAX(revision) + 1 en tabla_indice para ese numeropres
+//     2. Calcula el total sumando subtotales de los items
+//     3. INSERT nuevo encabezado en tabla_indice con la revisión nueva y el total actualizado
+//     4. DELETE items previos de tabla_presupuestos para ese numeropres
+//     5. INSERT de cada item con la revisión nueva
+//
+// Campos compartidos entre ambas tablas: numeropres, nombre (cliente), revision
+//
+// Mapeo frontend → tabla_indice:
+//   nombre   ← body.nombre  (nombre del cliente)
+//   fecha    ← body.fecha
+//   valor    ← suma de (item.precio * item.cantidad) de todos los items
+//   revision ← calculada automáticamente
+//
+// Mapeo frontend → tabla_presupuestos (por item):
+//   numeropres  ← numeropres asignado
+//   nombre      ← body.nombre  (cliente — dato compartido con tabla_indice)
+//   articulo    ← item.descripcion  (código/nombre del artículo)
+//   nombrart    ← item.nombreart    (nombre descriptivo del artículo)
+//   tipo        ← item.seccion      (ej: "Cocina / Bajomesadas", "Mampara", etc.)
+//   linea       ← item.linea ?? extraído de item.seccion
+//   ancho       ← item.ancho        (si viene en el item)
+//   alto        ← item.alto
+//   profundidad ← item.profundidad
+//   cantidad    ← item.cantidad
+//   valor       ← item.precio       (precio unitario)
+//   margen      ← item.margen
+//   valor1..3   ← item.valor1..3
+//   porcentaje1..3 ← item.porcentaje1..3
+//   revision    ← calculada automáticamente
+// ─────────────────────────────────────────────────────────────────────────────
+app.post("/tabla-presupuestos", (req, res) => {
+  const {
+    items,
+    numero:        numEntrada,      // presente solo en revisiones
+    NUMERO:        numEntradaMay,   // compatibilidad legacy
+    revision:      _rev,            // ignorado, lo calculamos nosotros
+    REVISION:      _revMay,         // compatibilidad legacy
+    id:            _id,             // ignorado
+    nombre:        nombreMin,
+    NOMBRE:        nombreMay,
+    fecha:         fechaMin,
+    FECHA:         fechaMay,
+    lista,
+    lineasElegidas,
+  } = req.body;
+
+  const numFinal      = numEntrada ?? numEntradaMay ?? null;
+  const nombreCliente = (nombreMin ?? nombreMay ?? "").trim() || null;
+  const listaGuardar  = lista ?? null;
+  const lineasArr     = Array.isArray(lineasElegidas) ? lineasElegidas : [];
+
+  // Sanitizar fecha
+  const fechaRaw = (fechaMin ?? fechaMay ?? "").trim();
+  const fechaValida = /^\d{4}-\d{2}-\d{2}$/.test(fechaRaw) ? fechaRaw : null;
+  const hoy = new Date();
+  const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,"0")}-${String(hoy.getDate()).padStart(2,"0")}`;
+  const fecha = fechaValida ?? fechaHoy;
+
+  const filas = Array.isArray(items) ? items : [];
+
+  // Totales por línea para tabla_indice
+  const totalesPorLinea = lineasArr.map((_, li) =>
+    filas.reduce((s, it) => {
+      const p = parseFloat(it.precios?.[li]?.precio ?? (li === 0 ? it.precio : null) ?? 0) || 0;
+      return s + p * (parseFloat(it.cantidad) || 1);
+    }, 0)
+  ).map(t => Math.round(t * 100) / 100 || null);
+
+  // ── Paso 1: guardar encabezado en tabla_indice ───────────────────────────
+  const guardarIndice = (callback) => {
+    if (numFinal) {
+      // Revisión de presupuesto existente — calcular nueva revisión
+      db.query(
+        "SELECT COALESCE(MAX(revision), 0) AS max_rev FROM tabla_indice WHERE numeropres = ?",
+        [numFinal],
+        (err, rows) => {
+          if (err) return res.status(500).json({ error: err.message });
+          const nuevaRev = (rows[0]?.max_rev ?? 0) + 1;
+          const filaIndice = {
+            numeropres: Number(numFinal),
+            nombre:     nombreCliente,
+            fecha:      fecha,
+            lista:      listaGuardar,
+            linea1:     lineasArr[0] ?? null,
+            valor1:     totalesPorLinea[0] ?? null,
+            linea2:     lineasArr[1] ?? null,
+            valor2:     totalesPorLinea[1] ?? null,
+            linea3:     lineasArr[2] ?? null,
+            valor3:     totalesPorLinea[2] ?? null,
+            revision:   nuevaRev,
+          };
+          db.query("INSERT INTO tabla_indice SET ?", filaIndice, (err2) => {
+            if (err2) return res.status(500).json({ error: err2.message });
+            callback(Number(numFinal), nuevaRev);
+          });
+        }
+      );
+    } else {
+      // Presupuesto nuevo — el id autogenerado será el numeropres
+      const filaIndice = {
+        nombre:   nombreCliente,
+        fecha:    fecha,
+        lista:    listaGuardar,
+        linea1:   lineasArr[0] ?? null,
+        valor1:   totalesPorLinea[0] ?? null,
+        linea2:   lineasArr[1] ?? null,
+        valor2:   totalesPorLinea[1] ?? null,
+        linea3:   lineasArr[2] ?? null,
+        valor3:   totalesPorLinea[2] ?? null,
+        revision: 0,
+      };
+      db.query("INSERT INTO tabla_indice SET ?", filaIndice, (err, r) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const newId = r.insertId;
+        // El id autogenerado se copia como numeropres
+        db.query(
+          "UPDATE tabla_indice SET numeropres = ? WHERE id = ?",
+          [newId, newId],
+          (err2) => {
+            if (err2) return res.status(500).json({ error: err2.message });
+            callback(newId, 0);
+          }
+        );
+      });
+    }
+  };
+
+  // ── Pasos 2-4: borrar items anteriores e insertar los nuevos ────────────
+  guardarIndice((numeroPres, revision) => {
+    db.query(
+      "DELETE FROM tabla_presupuestos WHERE numeropres = ?",
+      [numeroPres],
+      (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (filas.length === 0) {
+          return res.json({ numero: numeroPres, revision, insertados: 0 });
+        }
+
+        // Una fila por artículo con linea1/valor1/margen1, linea2/valor2/margen2, linea3/valor3/margen3
+        let pendientes = filas.length;
+        let errGlobal  = null;
+
+        if (pendientes === 0) {
+          return res.json({ numero: numeroPres, revision, insertados: 0 });
+        }
+
+        filas.forEach((it) => {
+          const filaItem = {
+            numeropres:  numeroPres,
+            nombre:      nombreCliente,
+            articulo:    it.descripcion  ?? it.articulo  ?? null,
+            nombreart:   it.nombreart    ?? it.nombrart  ?? null,
+            tipo:        it.seccion      ?? it.tipo      ?? null,
+            cantidad:    parseFloat(it.cantidad) || 1,
+            revision:    String(revision),
+            // Línea 1
+            linea1:      lineasArr[0] ?? null,
+            valor1:      parseFloat(it.precios?.[0]?.precio ?? it.valor1 ?? it.precio) || null,
+            margen1:     it.porcentaje1 ?? null,
+            // Línea 2
+            linea2:      lineasArr[1] ?? null,
+            valor2:      parseFloat(it.precios?.[1]?.precio ?? it.valor2) || null,
+            margen2:     it.porcentaje2 ?? null,
+            // Línea 3
+            linea3:      lineasArr[2] ?? null,
+            valor3:      parseFloat(it.precios?.[2]?.precio ?? it.valor3) || null,
+            margen3:     it.porcentaje3 ?? null,
+          };
+
+          Object.keys(filaItem).forEach(k => {
+            if (filaItem[k] === null) delete filaItem[k];
+          });
+
+          db.query("INSERT INTO tabla_presupuestos SET ?", filaItem, (err2) => {
+            if (err2 && !errGlobal) {
+              errGlobal = err2;
+              console.error("Error INSERT tabla_presupuestos:", err2.message, "| fila:", JSON.stringify(filaItem));
+            }
+            pendientes--;
+            if (pendientes === 0) {
+              if (errGlobal) return res.status(500).json({ error: errGlobal.message });
+              res.json({ numero: numeroPres, revision, insertados: filas.length });
+            }
+          });
+        });
+      }
+    );
+  });
+});
+
+// PUT encabezado en tabla_indice (edición directa sin nueva revisión)
+app.put("/tabla-indice/:id", (req, res) => {
+  const { id } = req.params;
+  const { id: _id, numeropres: _np, ...campos } = req.body;
+  const fila = {
+    nombre:   campos.nombre   ?? null,
+    fecha:    campos.fecha    ?? null,
+    lista:    campos.lista    ?? null,
+    linea1:   campos.linea1   ?? null,
+    valor1:   campos.valor1   ?? null,
+    linea2:   campos.linea2   ?? null,
+    valor2:   campos.valor2   ?? null,
+    linea3:   campos.linea3   ?? null,
+    valor3:   campos.valor3   ?? null,
+    revision: campos.revision ?? null,
+  };
+  // Quitar nulls para no sobreescribir campos no enviados
+  Object.keys(fila).forEach(k => fila[k] === null && delete fila[k]);
+  db.query("UPDATE tabla_indice SET ? WHERE id = ?", [fila, id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id, ...fila });
+  });
+});
+
+// PUT item de tabla_presupuestos
+app.put("/tabla-presupuestos/:id", (req, res) => {
+  const { id } = req.params;
+  const { id: _id, ...item } = req.body;
+  db.query(
+    "UPDATE tabla_presupuestos SET ? WHERE id = ?",
+    [item, id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id, ...item });
+    },
+  );
+});
+
+// DELETE item de tabla_presupuestos
+app.delete("/tabla-presupuestos/:id", (req, res) => {
+  db.query(
+    "DELETE FROM tabla_presupuestos WHERE id = ?",
+    [req.params.id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ deleted: req.params.id });
+    },
+  );
+});
+
+// DELETE presupuesto completo (indice + todos sus items)
+app.delete("/tabla-indice/:numeropres", (req, res) => {
+  const { numeropres } = req.params;
+  db.query("DELETE FROM tabla_presupuestos WHERE numeropres = ?", [numeropres], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    db.query("DELETE FROM tabla_indice WHERE numeropres = ?", [numeropres], (err2) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      res.json({ deleted: numeropres });
+    });
+  });
+});
+
+// ───────────────────────────────────────────
+// LISTA
+// Tabla: lista (id, lista, porcentaje)
+// ───────────────────────────────────────────
+
+app.get("/lista", (req, res) => {
+  db.query("SELECT * FROM lista ORDER BY lista", (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(result);
+  });
+});
+
+app.post("/lista", (req, res) => {
+  const { id, ...item } = req.body;
+  db.query("INSERT INTO lista SET ?", item, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id: result.insertId, ...item });
+  });
+});
+
+app.put("/lista/:id", (req, res) => {
+  const { id } = req.params;
+  const { id: _id, ...item } = req.body;
+  db.query("UPDATE lista SET ? WHERE id = ?", [item, id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ id, ...item });
   });
 });
 
-app.delete("/formulas/:id", (req, res) => {
-  db.query("DELETE FROM formulas WHERE id = ?", [req.params.id], (err) => {
+app.delete("/lista/:id", (req, res) => {
+  db.query("DELETE FROM lista WHERE id = ?", [req.params.id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ deleted: req.params.id });
   });
 });
 
+// ───────────────────────────────────────────
+// PROVEEDORES  (tabla: proveedor)
+// Columnas: id, provnombre, fantasia, domicilio, localidad,
+//           telefono, telefono1, wapp, ubicacion, cuit, tipo_fact
+// ───────────────────────────────────────────
+
+app.get("/proveedores/buscar", (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) return res.json([]);
+  const like = `%${q.trim()}%`;
+  db.query(
+    `SELECT * FROM proveedor
+     WHERE provnombre LIKE ?
+        OR fantasia   LIKE ?
+        OR localidad  LIKE ?
+     ORDER BY provnombre
+     LIMIT 10`,
+    [like, like, like],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    },
+  );
+});
+
+app.get("/proveedores", (req, res) => {
+  db.query("SELECT * FROM proveedor ORDER BY provnombre", (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(result);
+  });
+});
+
+app.post("/proveedores", (req, res) => {
+  const { id, ...item } = req.body;
+  db.query("INSERT INTO proveedor SET ?", item, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id: result.insertId, ...item });
+  });
+});
+
+app.put("/proveedores/:id", (req, res) => {
+  const { id } = req.params;
+  const { id: _id, ...item } = req.body;
+  db.query("UPDATE proveedor SET ? WHERE id = ?", [item, id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id, ...item });
+  });
+});
+
+app.delete("/proveedores/:id", (req, res) => {
+  db.query("DELETE FROM proveedor WHERE id = ?", [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ deleted: req.params.id });
+  });
+});
 // ───────────────────────────────────────────
 
 app.listen(3001, () => {

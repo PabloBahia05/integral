@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const API = "http://localhost:3001";
 
@@ -36,6 +36,18 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
   const [herrajes, setHerrajes]             = useState([]);
   const [cargandoInsumos, setCargandoInsumos] = useState(false);
 
+  // Slots de fórmulas asociadas al artículo (de asociaciones_form: codf1..codf10, form1..form10)
+  // Cada slot resuelto: { codform, nombre, expresion, resultado }
+  const [slotsFormulas, setSlotsFormulas]   = useState([]);
+  const [totalSlots, setTotalSlots]         = useState(0);
+  const [cargandoSlots, setCargandoSlots]   = useState(false);
+
+  // Cache de precios de BD extraídos de las expresiones (precio_XXXX → valor)
+  const preciosBD = useRef({});
+  // Estado para búsqueda de material
+  const [materialSearch, setMaterialSearch] = useState("");
+  const [materialDropdown, setMaterialDropdown] = useState(false);
+  const materialRef = useRef(null);
   // Próximo número de presupuesto
   useEffect(() => {
     fetch(`${API}/presupuestos-vanitory/proximo-numero`)
@@ -64,22 +76,196 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
   // Cargar margen desde BD cuando hay modelo con codart
   useEffect(() => {
     if (!modelo?.codart) return;
-    fetch(`${API}/margenes?codart=${encodeURIComponent(modelo.codart)}`)
-      .then(r => r.json())
-      .then(d => {
-        const row = Array.isArray(d) ? d[0] : d;
-        const raw = row?.MARGEN != null ? parseFloat(row.MARGEN) : null;
-        // BD devuelve factor (ej. 1.30) → convertir a % (ej. 30)
-        const margen = raw !== null && !isNaN(raw) ? Math.round((raw - 1) * 100 * 100) / 100 : null;
-        if (margen !== null && !isNaN(margen)) {
-          setMargenBD(margen);
-          setForm(prev => ({ ...prev, margen }));
-        } else {
-          setMargenBD(null);
+    console.log("[Vanitory] Buscando margen para codart:", modelo.codart);
+
+    const parseMargenRow = (row) => {
+      if (!row) return null;
+      // Primero buscar por CODART exacto, luego por ARTICULO (ambos están en la tabla margen)
+      for (const k of Object.keys(row)) {
+        if (/margen|margin/i.test(k)) {
+          const v = parseFloat(row[k]);
+          if (!isNaN(v)) return v;
         }
+      }
+      return null;
+    };
+
+    // Ruta correcta del backend: /margen/por-codart?codart=...
+    fetch(`${API}/margen/por-codart?codart=${encodeURIComponent(modelo.codart)}`)
+      .then(r => r.json())
+      .then(async d => {
+        console.log("[Vanitory] Margen BD raw:", d);
+        let row = Array.isArray(d) ? d[0] : d;
+
+        if (!row) { setMargenBD(null); return; }
+        const raw = parseMargenRow(row);
+        console.log("[Vanitory] Margen raw value:", raw, "| row keys:", Object.keys(row));
+        if (raw === null) { setMargenBD(null); return; }
+        // BD guarda multiplicador: 1.30 = 30%, 1.50 = 50%
+        // Si raw <= 10 es multiplicador; si > 10 ya es porcentaje directo
+        const margen = raw > 10
+          ? Math.round(raw * 100) / 100
+          : Math.round((raw - 1) * 10000) / 100;
+        console.log("[Vanitory] Margen calculado:", margen, "% (raw BD:", raw, ")");
+        setMargenBD(margen);
+        setForm(prev => ({ ...prev, margen }));
       })
-      .catch(() => setMargenBD(null));
+      .catch(err => { console.error("[Vanitory] Error cargando margen:", err); setMargenBD(null); });
   }, [modelo?.codart]);
+  // ── Cargar y evaluar fórmulas al elegir artículo o cambiar dimensiones ──────
+  // Flujo: asociaciones_form → codf1..10 + form1..10 (expresiones crudas)
+  //        formulas           → nombre/descripcion por cada codform
+  //        detectar precio_XXXX en expresiones → buscar en /articulos/:codart
+  //        evaluar cada expresion con variables del front + precios de BD
+  useEffect(() => {
+    if (!modelo?.codart) { setSlotsFormulas([]); setTotalSlots(0); return; }
+    setCargandoSlots(true);
+
+    const evalExpr = (expr, vars) => {
+      if (!expr || !expr.trim()) return null;
+      try {
+        let e = expr;
+        Object.entries(vars).forEach(([k, v]) => {
+          e = e.replace(new RegExp(`\\b${k}\\b`, "gi"), v);
+        });
+        // eslint-disable-next-line no-new-func
+        const r = new Function(`"use strict"; return (${e});`)();
+        return isNaN(r) || !isFinite(r) ? 0 : Math.round(r * 100) / 100;
+      } catch { return 0; }
+    };
+
+    // Variables resueltas por el formulario del front — NO buscar en BD
+    const VARS_FORM = new Set(["material", "base", "mano_obra", "manoobra", "vidrio"]);
+
+    // Extrae todos los codart que aparecen como precio_XXXX en una expresión
+    // Excluye las variables que ya están resueltas por el form
+    const extraerCodarts = (expr) => {
+      if (!expr) return [];
+      const matches = [...expr.matchAll(/precio_([A-Z0-9]+)/gi)];
+      return matches.map(m => m[1]).filter(cod => !VARS_FORM.has(cod.toLowerCase()));
+    };
+
+    Promise.all([
+      fetch(`${API}/asociaciones-form?codart=${encodeURIComponent(modelo.codart)}`).then(r => r.json()).catch(() => null),
+      fetch(`${API}/formulas`).then(r => r.json()).catch(() => []),
+    ]).then(async ([asocData, allFormulas]) => {
+      const row = Array.isArray(asocData) ? asocData[0] : asocData;
+      if (!row) { setSlotsFormulas([]); setTotalSlots(0); return; }
+
+      const formulasMap = {};
+      (Array.isArray(allFormulas) ? allFormulas : []).forEach(f => {
+        const cod = f.codform ?? f.CODFORM ?? "";
+        if (cod) formulasMap[cod.toUpperCase()] = f;
+      });
+
+      // Armar slots sin evaluar todavía
+      const slotsRaw = [];
+      for (let i = 1; i <= 10; i++) {
+        const codform   = row[`codf${i}`] ?? row[`CODF${i}`] ?? null;
+        const expresion = row[`form${i}`] ?? row[`FORM${i}`] ?? null;
+        if (!codform && !expresion) continue;
+
+        const fDef = codform ? formulasMap[codform.toUpperCase()] : null;
+        const nombre = fDef
+          ? (fDef.articulo ?? fDef.ARTICULO ?? fDef.nombre ?? fDef.NOMBRE ?? fDef.descripcion ?? codform)
+          : (codform ?? `Fórmula ${i}`);
+
+        // Siempre priorizar la fórmula actualizada de la tabla formulas (fDef),
+        // y solo usar la expresión guardada en asociaciones_form como fallback.
+        const exprFinal = (fDef ? (fDef.formula ?? fDef.FORMULA ?? fDef.expresion ?? "") : "") || expresion || "";
+        slotsRaw.push({ codform, nombre, expresion: exprFinal, slot: i });
+      }
+
+      // Recolectar todos los codarts únicos usados como precio_XXXX en las expresiones
+      const todasExpresiones = slotsRaw.map(s => s.expresion).join(" ");
+      const codartsBD = [...new Set(extraerCodarts(todasExpresiones))];
+
+      // Buscar precio de cada codart en la tabla articulos
+      const nuevosPrecios = {};
+      await Promise.all(
+        codartsBD.map(async (cod) => {
+          try {
+            const res  = await fetch(`${API}/articulos/${encodeURIComponent(cod)}`);
+            const data = await res.json();
+            const row = Array.isArray(data) ? data[0] : data;
+            // Intentar todos los campos posibles de precio
+            let precio = NaN;
+            const camposPrecio = ['PRECIO1','precio1','PRECIO','precio','PREC1','prec1','P1','p1','COSTO','costo','VALOR','valor'];
+            for (const campo of camposPrecio) {
+              const v = parseFloat(row?.[campo]);
+              if (!isNaN(v) && v > 0) { precio = v; break; }
+            }
+            // Si sigue sin encontrar, escanear TODAS las claves del objeto
+            if (isNaN(precio) && row) {
+              for (const k of Object.keys(row)) {
+                if (/prec|price|cost|valor/i.test(k)) {
+                  const v = parseFloat(row[k]);
+                  if (!isNaN(v) && v > 0) { precio = v; break; }
+                }
+              }
+            }
+            if (!isNaN(precio)) nuevosPrecios[`precio_${cod}`] = precio;
+          } catch(e) { /* artículo no encontrado, se ignora */ }
+        })
+      );
+      // Guardar en ref para re-evaluaciones posteriores (cambio de dimensiones)
+      preciosBD.current = { ...preciosBD.current, ...nuevosPrecios };
+
+      const vars = {
+        ancho:           Number(form.ancho),
+        alto:            Number(form.alto),
+        profundo:        Number(form.profundo),
+        profundidad:     Number(form.profundo),
+        cantidad:        Number(form.cantidad),
+        colocacion:      Number(form.colocacion),
+        precio_material: Number(form.materialPrecio) || 0,
+        precio_base:     modelo?.PRECIO_BASE ? parseFloat(modelo.PRECIO_BASE) : 0,
+        ...preciosBD.current,   // ← precios de BD inyectados
+      };
+
+      const slots = slotsRaw.map(s => ({ ...s, resultado: evalExpr(s.expresion, vars) }));
+      const suma  = slots.reduce((a, s) => a + (s.resultado ?? 0), 0);
+      setSlotsFormulas(slots);
+      setTotalSlots(Math.round(suma * 100) / 100);
+    }).finally(() => setCargandoSlots(false));
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelo?.codart]);
+
+  // Re-evaluar cuando cambian las dimensiones/vars del front (sin volver a fetchear)
+  useEffect(() => {
+    if (!slotsFormulas.length) return;
+
+    const vars = {
+      ancho:           Number(form.ancho),
+      alto:            Number(form.alto),
+      profundo:        Number(form.profundo),
+      profundidad:     Number(form.profundo),
+      cantidad:        Number(form.cantidad),
+      colocacion:      Number(form.colocacion),
+      precio_material: Number(form.materialPrecio) || 0,
+      precio_base:     modelo?.PRECIO_BASE ? parseFloat(modelo.PRECIO_BASE) : 0,
+      ...preciosBD.current,   // ← precios de BD ya cargados, sin refetchear
+    };
+
+    const evalExpr = (expr) => {
+      if (!expr || !expr.trim()) return null;
+      try {
+        let e = expr;
+        Object.entries(vars).forEach(([k, v]) => { e = e.replace(new RegExp(`\\b${k}\\b`, "gi"), v); });
+        // eslint-disable-next-line no-new-func
+        const r = new Function(`"use strict"; return (${e});`)();
+        return isNaN(r) || !isFinite(r) ? 0 : Math.round(r * 100) / 100;
+      } catch { return 0; }
+    };
+
+    const actualizados = slotsFormulas.map(s => ({ ...s, resultado: evalExpr(s.expresion) }));
+    const suma = actualizados.reduce((a, s) => a + (s.resultado ?? 0), 0);
+    setSlotsFormulas(actualizados);
+    setTotalSlots(Math.round(suma * 100) / 100);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.ancho, form.alto, form.profundo, form.cantidad, form.colocacion, form.materialPrecio]);
+
   useEffect(() => {
     setCargandoInsumos(true);
     Promise.all([
@@ -149,8 +335,10 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
   }, [modelo?.codart, form.ancho, form.alto, form.profundo, form.cantidad, form.colocacion, form.materialPrecio]);
 
   // Totales
+  const totalMaterial   = Number(form.materialPrecio) || 0;
   const totalCorredera  = (Number(form.correderaPrecio) || 0) * (Number(form.correderaCantidad) || 1);
-  const baseMargen      = result.subtotal + totalCorredera;
+  // El margen se aplica a TODOS los ítems (fórmulas + material + correderas) ANTES de la colocación
+  const baseMargen      = result.subtotal + totalSlots + totalMaterial + totalCorredera;
   const totalMargen     = baseMargen * (Number(form.margen) || 0) / 100;
   const total           = baseMargen + totalMargen + Number(form.colocacion);
 
@@ -267,6 +455,7 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
     <div class="totals-wrap">
       <div class="totals-box">
         <div class="totals-row"><span style="color:#6a8aa0">Subtotal</span><span style="font-weight:600">${formatPeso(result.subtotal)}</span></div>
+        ${totalSlots > 0 ? `<div class="totals-row"><span style="color:#6a8aa0">Fórmulas (${slotsFormulas.length} ítems)</span><span style="font-weight:600">${formatPeso(totalSlots)}</span></div>` : ""}
         ${Number(form.colocacion) > 0 ? `<div class="totals-row"><span style="color:#6a8aa0">Colocación</span><span style="font-weight:600">${formatPeso(form.colocacion)}</span></div>` : ""}
 
         ${totalCorredera > 0 ? `<div class="totals-row"><span style="color:#6a8aa0">Correderas</span><span style="font-weight:600">${formatPeso(totalCorredera)}</span></div>` : ""}
@@ -358,22 +547,6 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
           border-bottom: 1px solid #f0f4f8; font-size: 12px; width: 100%; }
         .foto-info-label { color: #6a8aa0; }
         .foto-info-value { font-weight: 600; color: #0f2944; }
-        /* Asociados */
-        .asociados-section { background: #f0f6fb; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
-        .asociados-header { display: flex; align-items: center; justify-content: space-between;
-          margin-bottom: 10px; background: #0f2944; borderRadius: 6px; padding: 8px 12px; border-radius: 6px; }
-        .asociados-header-title { font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700;
-          letter-spacing: 0.12em; text-transform: uppercase; color: #fff; }
-        .asociado-row { display: flex; align-items: center; justify-content: space-between;
-          padding: 10px 12px; background: #fff; border-radius: 6px; margin-bottom: 6px;
-          border: 1px solid #e0eaf2; gap: 12px; }
-        .asociado-nombre { font-size: 13px; font-weight: 600; color: #0f2944; }
-        .asociado-cod { font-size: 11px; color: #4a8ab5; }
-        .asociado-margen-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-        .asociado-margen-label { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: #4a8ab5; text-transform: uppercase; }
-        .asociado-margen-input { width: 72px; border: 1.5px solid #d0dde8; border-radius: 5px;
-          padding: 5px 8px; font-size: 14px; color: #0f2944; text-align: right; outline: none; }
-        .asociado-margen-input.modified { border-color: #ffc107; background: #fffbeb; }
         .asociado-empty { font-size: 12px; color: #8aabb8; font-style: italic; padding: 8px 0; }
       `}</style>
 
@@ -391,6 +564,110 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
                 </span>
               </div>
 
+              {/* ── Fórmulas asociadas al artículo ── */}
+              {modelo?.codart && (
+                <div style={{
+                  background:"#f4f8fb", borderRadius:10, padding:"14px 16px",
+                  marginBottom:20, border:"1px solid #e0eaf2"
+                }}>
+                  {/* Header */}
+                  <div style={{
+                    display:"flex", alignItems:"center", justifyContent:"space-between",
+                    background:"#0f2944", borderRadius:7, padding:"9px 14px", marginBottom:12
+                  }}>
+                    <span style={{
+                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13,
+                      letterSpacing:"0.12em", textTransform:"uppercase", color:"#fff"
+                    }}>🧮 Fórmulas asociadas</span>
+                    {cargandoSlots && (
+                      <span style={{fontSize:"11px",color:"#7ab2d4",fontStyle:"italic"}}>⏳ Calculando...</span>
+                    )}
+                    {!cargandoSlots && slotsFormulas.length > 0 && (
+                      <span style={{
+                        fontFamily:"'Rajdhani',sans-serif", fontSize:11, color:"#7ab2d4",
+                        letterSpacing:"0.08em"
+                      }}>{slotsFormulas.length} ítem{slotsFormulas.length !== 1 ? "s" : ""}</span>
+                    )}
+                  </div>
+
+                  {/* Sin datos */}
+                  {!cargandoSlots && slotsFormulas.length === 0 && (
+                    <p style={{fontSize:"12px",color:"#8aabb8",fontStyle:"italic",padding:"6px 2px"}}>
+                      Sin fórmulas asociadas para este artículo.
+                    </p>
+                  )}
+
+                  {/* Filas de slots */}
+                  {slotsFormulas.map((slot, i) => (
+                    <div key={slot.slot ?? i} style={{
+                      background:"#fff", borderRadius:7, border:"1px solid #e0eaf2",
+                      marginBottom:7, padding:"10px 12px"
+                    }}>
+                      {/* Nombre + resultado */}
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                        <div style={{flex:1, minWidth:0}}>
+                          <div style={{
+                            fontWeight:700, fontSize:13, color:"#0f2944",
+                            whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"
+                          }}>
+                            {slot.nombre}
+                          </div>
+                          {slot.codform && (
+                            <div style={{
+                              fontSize:"10px", color:"#4a8ab5", fontFamily:"monospace",
+                              marginTop:2, letterSpacing:"0.04em"
+                            }}>#{slot.codform}</div>
+                          )}
+                        </div>
+                        <div style={{
+                          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:16,
+                          color: slot.resultado > 0 ? "#0f2944" : "#b0c8d8",
+                          minWidth:100, textAlign:"right", flexShrink:0
+                        }}>
+                          {slot.resultado != null ? formatPeso(slot.resultado) : "—"}
+                        </div>
+                      </div>
+
+                      {/* Expresión */}
+                      {slot.expresion && (
+                        <div style={{
+                          marginTop:7, padding:"4px 8px",
+                          background:"#eaf3fb", border:"1px solid #b8d6ef",
+                          borderRadius:5, fontSize:"11px", fontFamily:"monospace",
+                          color:"#1a4a70", wordBreak:"break-all", lineHeight:1.5
+                        }}>
+                          <span style={{
+                            fontSize:"9px", fontWeight:700, letterSpacing:"0.1em",
+                            color:"#4a8ab5", textTransform:"uppercase",
+                            fontFamily:"'Source Sans 3',sans-serif", marginRight:4
+                          }}>expr ·</span>
+                          {slot.expresion}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Subtotal fórmulas */}
+                  {slotsFormulas.length > 0 && (
+                    <div style={{
+                      display:"flex", justifyContent:"space-between", alignItems:"center",
+                      marginTop:8, padding:"10px 14px",
+                      background:"linear-gradient(90deg,#1a3a5c,#0f2944)",
+                      borderRadius:7
+                    }}>
+                      <span style={{
+                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:11,
+                        letterSpacing:"0.14em", color:"#7ab2d4", textTransform:"uppercase"
+                      }}>Subtotal fórmulas</span>
+                      <span style={{
+                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:20,
+                        color:"#60b4f0"
+                      }}>{formatPeso(totalSlots)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Cliente */}
               <div className="field">
                 <span className="label-text">NOMBRE / CLIENTE *</span>
@@ -399,7 +676,7 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
               </div>
 
               {/* Material */}
-              <div className="field">
+              <div className="field" style={{position:"relative"}} ref={materialRef}>
                 <span className="label-text">
                   🪵 MATERIAL
                   {form.material && <span style={{marginLeft:8,fontSize:"10px",color:"#2d7fc1",fontWeight:600}}>{formatPeso(totalMaterial)}</span>}
@@ -407,18 +684,67 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
                 {cargandoInsumos ? (
                   <div style={{fontSize:"12px",color:"#4a8ab5",fontStyle:"italic",padding:"10px 0"}}>⏳ Cargando...</div>
                 ) : (
-                  <select className="input" style={{cursor:"pointer"}} value={form.material}
-                    onChange={e => {
-                      const sel = insumosMuebles.find(p => p.articulo === e.target.value);
-                      setForm(prev => ({ ...prev, material: e.target.value, materialPrecio: sel ? parseFloat(sel.precio) || 0 : 0 }));
-                    }}>
-                    <option value="">— Sin material —</option>
-                    {insumosMuebles.map((p, i) => (
-                      <option key={p.id ?? p.codart ?? i} value={p.articulo}>
-                        {p.codart ? `[${p.codart}] ` : ""}{p.articulo}{p.precio != null ? ` — $${parseFloat(p.precio).toLocaleString("es-AR")}` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <input
+                        className="input"
+                        style={{flex:1}}
+                        placeholder="Escribí para buscar material..."
+                        value={materialSearch !== "" || materialDropdown ? materialSearch : form.material}
+                        onFocus={() => { setMaterialSearch(""); setMaterialDropdown(true); }}
+                        onChange={e => { setMaterialSearch(e.target.value); setMaterialDropdown(true); }}
+                        onBlur={() => setTimeout(() => setMaterialDropdown(false), 150)}
+                      />
+                      {form.material && (
+                        <button
+                          type="button"
+                          onClick={() => { setForm(prev => ({ ...prev, material: "", materialPrecio: 0 })); setMaterialSearch(""); }}
+                          style={{padding:"0 10px",height:38,borderRadius:4,border:"1px solid #d0dde8",background:"#f5f8fa",color:"#c0392b",cursor:"pointer",fontSize:14,fontWeight:700}}
+                          title="Quitar material"
+                        >✕</button>
+                      )}
+                    </div>
+                    {materialDropdown && (
+                      <div style={{
+                        position:"absolute", zIndex:999, left:0, right:0,
+                        background:"#fff", border:"1px solid #b8d6ef", borderRadius:6,
+                        boxShadow:"0 4px 18px rgba(0,40,80,0.13)", maxHeight:220, overflowY:"auto",
+                        marginTop:2
+                      }}>
+                        {/* Opción vaciar */}
+                        <div
+                          style={{padding:"9px 14px",fontSize:12,color:"#6a8aa0",cursor:"pointer",borderBottom:"1px solid #e8f0f7"}}
+                          onMouseDown={() => { setForm(prev => ({ ...prev, material: "", materialPrecio: 0 })); setMaterialSearch(""); setMaterialDropdown(false); }}
+                        >— Sin material —</div>
+                        {insumosMuebles
+                          .filter(p => !materialSearch || (p.articulo ?? "").toLowerCase().includes(materialSearch.toLowerCase()) || (p.codart ?? "").toLowerCase().includes(materialSearch.toLowerCase()))
+                          .slice(0, 60)
+                          .map((p, i) => (
+                            <div
+                              key={p.id ?? p.codart ?? i}
+                              style={{
+                                padding:"9px 14px", fontSize:13, cursor:"pointer",
+                                background: form.material === p.articulo ? "#e8f4fb" : "transparent",
+                                borderBottom:"1px solid #f0f5fa",
+                                display:"flex", justifyContent:"space-between", alignItems:"center"
+                              }}
+                              onMouseDown={() => {
+                                setForm(prev => ({ ...prev, material: p.articulo, materialPrecio: parseFloat(p.precio) || 0 }));
+                                setMaterialSearch("");
+                                setMaterialDropdown(false);
+                              }}
+                            >
+                              <span>{p.codart ? <span style={{color:"#4a8ab5",fontFamily:"monospace",marginRight:6}}>[{p.codart}]</span> : null}{p.articulo}</span>
+                              {p.precio != null && <span style={{color:"#2d7fc1",fontWeight:700,fontSize:12,marginLeft:8}}>${parseFloat(p.precio).toLocaleString("es-AR")}</span>}
+                            </div>
+                          ))
+                        }
+                        {insumosMuebles.filter(p => !materialSearch || (p.articulo ?? "").toLowerCase().includes(materialSearch.toLowerCase()) || (p.codart ?? "").toLowerCase().includes(materialSearch.toLowerCase())).length === 0 && (
+                          <div style={{padding:"12px 14px",fontSize:12,color:"#b0c0d0",fontStyle:"italic"}}>Sin resultados</div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -532,10 +858,13 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
                     ⏳ Recalculando...
                   </div>
                 )}
-                <div className="breakdown-row">
-                  <span>Fórmula vanitory</span>
-                  <span>{formatPeso(result.subtotal)}</span>
-                </div>
+
+                {totalSlots > 0 && (
+                  <div className="breakdown-row" style={{color:"#2d7fc1"}}>
+                    <span>🧮 Fórmulas BD ({slotsFormulas.length} ítems)</span>
+                    <span>{formatPeso(totalSlots)}</span>
+                  </div>
+                )}
                 {totalCorredera > 0 && (
                   <div className="breakdown-row" style={{color:"#d97706"}}>
                     <span>🔩 {form.corredera} × {form.correderaCantidad}</span>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-export default function PresupuestoMamparas({ presupuestoACargar = null, onCargado, onGuardado }) {
+export default function PresupuestoMamparas({ presupuestoACargar = null, onCargado, onGuardado, clienteInicial = "" }) {
   const [presupuestoId, setPresupuestoId] = useState(null); // número entero, null = sin asignar
   const [revision, setRevision]           = useState(0);
   const [articuloSeleccionado, setArticuloSeleccionado] = useState(null);
@@ -33,7 +33,7 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
 
   // ── Form ────────────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
-    cliente:   "",
+    cliente:   clienteInicial,
     cantidad:  1,
     ancho:     80,
     alto:      200,
@@ -431,7 +431,26 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
         fetchProximoNumero();
       }
 
-      onGuardado?.();   // avisar al padre para refrescar la lista
+      onGuardado?.(data);   // avisar al padre para refrescar la lista
+
+      // ── También guardar en tabla_presupuestos ──────────────────
+      const filaTabla = {
+        numeropres: Number(data.NUMERO ?? data.id),
+        articulo:   modelo,
+        tipo:       form.vidrio,
+        ancho:      Number(form.ancho),
+        alto:       Number(form.alto),
+        profundidad: 0,
+        margen:     asociados[0]?.margen ?? 1,
+        valor:      Number(total),
+        revision:   nuevaRevision,
+      };
+      fetch("http://localhost:3001/tabla-presupuestos", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(filaTabla),
+      }).catch(() => {}); // silencioso — no bloquea el flujo principal
+
       setTimeout(() => setGuardadoOk(false), 3000);
     } catch (err) {
       setErrorCalc(err.message);
@@ -449,7 +468,7 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
     setAsociados([]);
     setBusqueda("");
     setModelo("");
-    setForm({ cliente: "", cantidad: 1, ancho: 80, alto: 200, vidrio: "esmerilado", colocacion: 0 });
+    setForm({ cliente: clienteInicial, cantidad: 1, ancho: 80, alto: 200, vidrio: "esmerilado", colocacion: 0 });
     setColocacionBD(null);
     setErrorCalc("");
     fetchProximoNumero(); // trae el próximo número actualizado desde la BD

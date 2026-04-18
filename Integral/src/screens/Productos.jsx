@@ -16,7 +16,7 @@ const COLUMNS = [
   { key: "cantidad",  label: "Cantidad" },
   { key: "ancho",     label: "Ancho" },
   { key: "alto",      label: "Alto" },
-  { key: "deposito",  label: "Depósito" },
+  { key: "linea",  label: "Línea" },
   { key: "color",     label: "Color" },
   { key: "familia",   label: "Familia" },
   { key: "area",      label: "Área" },
@@ -25,7 +25,7 @@ const COLUMNS = [
 const EMPTY = {
   codart: "", articulo: "", area: "", unidad: "", artfoto: "",
   precio: "", proveedor: "", cantidad: "", ancho: "", alto: "",
-  deposito: "", color: "", familia: "", rubro: "",
+  linea: "", color: "", familia: "", rubro: "",
   costosi: "", costosicf: "", costo_placa: "",
 };
 
@@ -46,7 +46,7 @@ const FIELDS_LEFT_BOTTOM = [
 const FIELDS_RIGHT = [
   { field: "ancho",    label: "Ancho (cm)",  placeholder: "Ej: 80" },
   { field: "alto",     label: "Alto (cm)",   placeholder: "Ej: 200" },
-  { field: "deposito", label: "Depósito",    placeholder: "Ej: A1" },
+  { field: "linea", label: "Línea",    placeholder: "Ej: Living" },
   { field: "color",    label: "Color",       placeholder: "Ej: 1" },
   { field: "area",     label: "Área",        placeholder: "Ej: 01" },
 ];
@@ -129,7 +129,7 @@ function DetalleArticulo({ producto }) {
       {producto.unidad    && <p className="detalle-codigo">Unidad: <strong>{producto.unidad}</strong></p>}
       {producto.proveedor && <p className="detalle-codigo">Proveedor: <strong>{producto.proveedor}</strong></p>}
       {producto.color     && <p className="detalle-codigo">Color: <strong>{producto.color}</strong></p>}
-      {producto.deposito  && <p className="detalle-codigo">Depósito: <strong>{producto.deposito}</strong></p>}
+      {producto.linea     && <p className="detalle-codigo">Línea: <strong>{producto.linea}</strong></p>}
       {producto.familia   && <p className="detalle-codigo">Familia: <strong>{producto.familia}</strong></p>}
       <div className="detalle-precios">
         <div className="detalle-precio-row"><span>Precio</span><strong>{fmt(producto.precio)}</strong></div>
@@ -172,7 +172,7 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
       .catch(() => {});
   }, []);
 
-  // Cargar rubros únicos (para el form)
+  // Cargar rubros únicos (para el filtro y el form)
   const cargarRubros = () => {
     fetch(`${API}/articulos/rubros`)
       .then(r => r.json())
@@ -181,20 +181,20 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
   };
   useEffect(() => { cargarRubros(); }, []);
 
-  // Rubros del filtro — se filtran por familia si hay una elegida
+  // Familias del filtro — se filtran por rubro si hay uno elegido
   useEffect(() => {
-    if (filtroFamilia) {
-      fetch(`${API}/articulos/rubros-por-familia?familia=${encodeURIComponent(filtroFamilia)}`)
+    if (filtroRubro) {
+      fetch(`${API}/articulos/familias-por-rubro?rubro=${encodeURIComponent(filtroRubro)}`)
         .then(r => r.json())
-        .then(data => { setRubrosDelFiltro(Array.isArray(data) ? data : []); setFiltroRubro(""); setPage(1); })
+        .then(data => { setRubrosDelFiltro(Array.isArray(data) ? data : []); setFiltroFamilia(""); setPage(1); })
         .catch(() => {});
     } else {
-      fetch(`${API}/articulos/rubros`)
+      fetch(`${API}/articulos/familias-todas`)
         .then(r => r.json())
         .then(data => { setRubrosDelFiltro(Array.isArray(data) ? data : []); })
         .catch(() => {});
     }
-  }, [filtroFamilia]);
+  }, [filtroRubro]);
 
   // Debounce search
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -260,7 +260,7 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
       cantidad:  s(selected.cantidad),
       ancho:     s(selected.ancho),
       alto:      s(selected.alto),
-      deposito:  s(selected.deposito),
+      linea:     s(selected.linea),
       color:     s(selected.color),
       familia:   s(selected.familia),
       rubro:     s(selected.rubro),
@@ -295,7 +295,7 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
       cantidad:  toInt(form.cantidad),
       ancho:     toDecimal(form.ancho),
       alto:      toDecimal(form.alto),
-      deposito:  form.deposito  || null,
+      linea:     form.linea  || null,
       color:     form.color     || null,
       familia:   form.familia   || null,
       rubro:     form.rubro     || null,
@@ -320,31 +320,32 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
         search={search} onSearch={setSearch}
       />
 
-      {/* Filtros Familia / Rubro */}
+      {/* Filtros Rubro / Familia */}
       <div style={{ display: "flex", gap: 10, margin: "8px 0", alignItems: "center" }}>
         <select
           className="form-input"
           style={{ maxWidth: 220, marginBottom: 0, cursor: "pointer" }}
-          value={filtroFamilia}
-          onChange={e => { setFiltroFamilia(e.target.value); setFiltroRubro(""); setPage(1); }}
+          value={filtroRubro}
+          onChange={e => { setFiltroRubro(e.target.value); setFiltroFamilia(""); setPage(1); }}
         >
-          <option value="">— Todas las familias —</option>
-          {familias.map(f => <option key={f} value={f}>{f}</option>)}
+          <option value="">— Todos los rubros —</option>
+          {rubros.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         <select
           className="form-input"
           style={{ maxWidth: 220, marginBottom: 0, cursor: "pointer" }}
-          value={filtroRubro}
-          onChange={e => { setFiltroRubro(e.target.value); setPage(1); }}
+          value={filtroFamilia}
+          onChange={e => { setFiltroFamilia(e.target.value); setPage(1); }}
+          disabled={!filtroRubro && rubrosDelFiltro.length === 0}
         >
-          <option value="">— Todos los rubros —</option>
-          {(filtroFamilia ? rubrosDelFiltro : rubros).map(r => <option key={r} value={r}>{r}</option>)}
+          <option value="">— Todas las familias —</option>
+          {(filtroRubro ? rubrosDelFiltro : familias).map(f => <option key={f} value={f}>{f}</option>)}
         </select>
-        {(filtroFamilia || filtroRubro) && (
+        {(filtroRubro || filtroFamilia) && (
           <button
             className="btn-cancel"
             style={{ padding: "6px 14px", fontSize: 12, whiteSpace: "nowrap" }}
-            onClick={() => { setFiltroFamilia(""); setFiltroRubro(""); setPage(1); }}
+            onClick={() => { setFiltroRubro(""); setFiltroFamilia(""); setPage(1); }}
           >
             ✕ Limpiar filtros
           </button>

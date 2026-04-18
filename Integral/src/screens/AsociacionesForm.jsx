@@ -1,11 +1,10 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
 const API = "http://localhost:3001";
 const SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 const EMPTY = () => ({
   codart: "", articulo: "", rubro: "", familia: "",
-  codf: "", form: "",
   codf1: "", form1: "", codf2: "", form2: "",
   codf3: "", form3: "", codf4: "", form4: "",
   codf5: "", form5: "", codf6: "", form6: "",
@@ -134,6 +133,8 @@ const styles = `
   .aform-btn-edit:hover { background: #dbeafe; }
   .aform-btn-del { background: #fff0f1; }
   .aform-btn-del:hover { background: #fecdd3; }
+  .aform-btn-dup { background: #f0fdf4; }
+  .aform-btn-dup:hover { background: #bbf7d0; }
 
   .aform-empty { display: flex; flex-direction: column; align-items: center; padding: 60px 20px; gap: 8px; }
   .aform-empty-icon { font-size: 40px; opacity: 0.3; }
@@ -142,18 +143,22 @@ const styles = `
   /* ── Modal ── */
   .aform-modal-overlay {
     position: fixed; inset: 0; background: rgba(15,31,53,0.45);
-    backdrop-filter: blur(3px); display: flex; align-items: center;
-    justify-content: center; z-index: 1000; padding: 20px;
+    backdrop-filter: blur(3px); z-index: 1000;
+    pointer-events: none;
   }
   .aform-modal-box {
     background: #fff; border-radius: 18px;
     width: 100%; max-width: 860px; max-height: 92vh; overflow-y: auto;
     box-shadow: 0 24px 60px rgba(15,31,53,0.22); padding: 28px 32px 24px;
+    position: fixed; pointer-events: all;
+    user-select: none;
   }
   .aform-modal-header {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1.5px solid #f0f4f8;
+    cursor: grab;
   }
+  .aform-modal-header:active { cursor: grabbing; }
   .aform-modal-title {
     font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800;
     color: #0f1f35; display: flex; align-items: center; gap: 8px;
@@ -314,8 +319,38 @@ export default function AsociacionesForm({
     Object.fromEntries(SLOTS.map(n => [n, ""]))
   );
 
-  // Ref al textarea para insertar en posición del cursor
-  const formulaRef = useRef(null);
+  // Drag state for modal
+  const [modalPos, setModalPos] = useState({ x: null, y: null });
+  const dragRef = useRef({ dragging: false, startX: 0, startY: 0, origX: 0, origY: 0 });
+
+  const onDragStart = useCallback((e) => {
+    const box = e.currentTarget.closest(".aform-modal-box");
+    if (!box) return;
+    const rect = box.getBoundingClientRect();
+    dragRef.current = {
+      dragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: rect.left,
+      origY: rect.top,
+    };
+    const onMove = (ev) => {
+      if (!dragRef.current.dragging) return;
+      const dx = ev.clientX - dragRef.current.startX;
+      const dy = ev.clientY - dragRef.current.startY;
+      setModalPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy });
+    };
+    const onUp = () => {
+      dragRef.current.dragging = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, []);
+
+  // Ref al textarea — ya no se usa (fórmula principal eliminada)
+  // const formulaRef = useRef(null);
 
   useEffect(() => {
     fetch(`${API}/articulos/rubros`).then(r => r.json()).then(setRubros).catch(() => {});
@@ -338,6 +373,7 @@ export default function AsociacionesForm({
     setForm(EMPTY()); setEditId(null);
     setRubroPadre(""); setFamiliaPadre("");
     setRubroSlots(Object.fromEntries(SLOTS.map(n => [n, ""])));
+    setModalPos({ x: null, y: null });
     setModalOpen(true); onOpenModal?.("form");
   };
 
@@ -345,40 +381,31 @@ export default function AsociacionesForm({
     setForm({ ...row }); setEditId(row.id);
     setRubroPadre(""); setFamiliaPadre("");
     setRubroSlots(Object.fromEntries(SLOTS.map(n => [n, ""])));
+    setModalPos({ x: null, y: null });
+    setModalOpen(true); onOpenModal?.("form");
+  };
+
+  const openDuplicate = (row) => {
+    const { id, ...rest } = row;
+    setForm({ ...rest, codart: "", articulo: "" });
+    setEditId(null);
+    setRubroPadre(""); setFamiliaPadre("");
+    setRubroSlots(Object.fromEntries(SLOTS.map(n => [n, ""])));
+    setModalPos({ x: null, y: null });
     setModalOpen(true); onOpenModal?.("form");
   };
 
   const closeModal = () => { setModalOpen(false); onCloseModal?.(); };
 
-  // Guardar: si la fórmula principal es nueva o cambió, también la persiste en /formulas
+  // Guardar asociación
   const handleSave = async () => {
     if (!form.codart && !form.articulo) return;
 
-    if (form.codf && form.form) {
-      const existente = formulas.find(f => f.codform === form.codf);
-      try {
-        if (existente) {
-          await fetch(`${API}/formulas/${existente.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ codform: form.codf, formula: form.form, codart: form.codart, rubro: form.rubro, familia: form.familia }),
-          });
-        } else {
-          const nueva = await fetch(`${API}/formulas`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ codform: form.codf, formula: form.form, codart: form.codart, rubro: form.rubro, familia: form.familia }),
-          }).then(r => r.json());
-          if (nueva?.id) setFormulas(prev => [...prev, nueva]);
-        }
-      } catch (e) {
-        console.error("Error al guardar fórmula:", e);
-      }
-    }
-
-    // Excluir campos solo de visualización que no son columnas en la tabla asociaciones_form
-    const { articulo, rubro, familia, ...formData } = form;
-    const payload = editId !== null ? { id: editId, ...formData } : { ...formData };
+    // Incluir todos los campos del form en el payload (articulo, rubro y familia
+    // son columnas reales de la tabla asociaciones_form y deben enviarse al PUT)
+    const payload = editId !== null
+      ? { id: editId, ...form }   // makeCRUD detecta edición por !!item.id
+      : { ...form };              // creación: sin id → MySQL lo autogenera
     onSave?.(payload);
     closeModal();
   };
@@ -401,23 +428,10 @@ export default function AsociacionesForm({
     }));
   };
 
-  // Insertar "FORM_XXX" en la posición del cursor del textarea
+  // Insertar "FORM_XXX" en el textarea del slot activo (ya no hay fórmula principal)
   const insertarSlot = (codform) => {
     if (!codform) return;
-    const variable = `FORM_${codform}`;
-    const el = formulaRef.current;
-    if (el) {
-      const start = el.selectionStart ?? el.value.length;
-      const end   = el.selectionEnd   ?? el.value.length;
-      const nuevo = form.form.slice(0, start) + variable + form.form.slice(end);
-      setForm(f => ({ ...f, form: nuevo }));
-      setTimeout(() => {
-        el.focus();
-        el.setSelectionRange(start + variable.length, start + variable.length);
-      }, 10);
-    } else {
-      setForm(f => ({ ...f, form: f.form + variable }));
-    }
+    // Sin textarea de fórmula principal, esta función queda como placeholder
   };
 
   const filtered = useMemo(() =>
@@ -474,7 +488,6 @@ export default function AsociacionesForm({
                   <th>Cód. Art.</th>
                   <th>Artículo</th>
                   <th>Rubro</th>
-                  <th>Fórmula Principal</th>
                   {SLOTS.map(n => <th key={n}>Form {n}</th>)}
                   <th>Acciones</th>
                 </tr>
@@ -482,7 +495,7 @@ export default function AsociacionesForm({
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={5 + SLOTS.length + 1}>
+                    <td colSpan={4 + SLOTS.length + 1}>
                       <div className="aform-empty">
                         <div className="aform-empty-icon">🧮</div>
                         <div className="aform-empty-text">Sin registros de fórmulas asociadas</div>
@@ -499,12 +512,6 @@ export default function AsociacionesForm({
                     <td><span className="aform-cod-badge">{row.codart}</span></td>
                     <td><span className="aform-padre-name">{row.articulo}</span></td>
                     <td><span style={{ fontSize: 12, color: "#64748b" }}>{row.rubro || "—"}</span></td>
-                    <td>
-                      {row.codf
-                        ? <span className="aform-form-badge">{row.codf}</span>
-                        : <span className="aform-slot-empty">—</span>
-                      }
-                    </td>
                     {SLOTS.map(n => (
                       <td key={n}>
                         {row[`codf${n}`]
@@ -517,6 +524,8 @@ export default function AsociacionesForm({
                       <div className="aform-actions">
                         <button className="aform-btn-icon aform-btn-edit" title="Editar"
                           onClick={e => { e.stopPropagation(); openEdit(row); }}>✏️</button>
+                        <button className="aform-btn-icon aform-btn-dup" title="Duplicar"
+                          onClick={e => { e.stopPropagation(); openDuplicate(row); }}>📋</button>
                         <button className="aform-btn-icon aform-btn-del" title="Eliminar"
                           onClick={e => {
                             e.stopPropagation();
@@ -533,12 +542,19 @@ export default function AsociacionesForm({
 
         {/* ── Modal ── */}
         {showModal && (
-          <div className="aform-modal-overlay" onClick={closeModal}>
-            <div className="aform-modal-box" onClick={e => e.stopPropagation()}>
-
-              <div className="aform-modal-header">
+          <>
+            <div className="aform-modal-overlay" onClick={closeModal} style={{ pointerEvents: "all" }} />
+            <div
+              className="aform-modal-box"
+              style={modalPos.x !== null ? { left: modalPos.x, top: modalPos.y, transform: "none" } : {
+                left: "50%", top: "50%", transform: "translate(-50%, -50%)"
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="aform-modal-header" onMouseDown={onDragStart}>
                 <div className="aform-modal-title">
                   🧮 {editId !== null ? "Editar Asociación de Fórmula" : "Nueva Asociación de Fórmula"}
+                  <span style={{fontSize:11, fontWeight:400, color:"#94a3b8", marginLeft:6}}>⠿ arrastrar</span>
                 </div>
                 <button className="aform-modal-close" onClick={closeModal}>✕</button>
               </div>
@@ -576,38 +592,8 @@ export default function AsociacionesForm({
                 </div>
               </div>
 
-              {/* ── Constructor Fórmula Principal ── */}
-              <div className="aform-section-label">Fórmula principal</div>
-              <div className="aform-constructor">
-                <div className="aform-constructor-top">
-                  <div className="aform-field-group">
-                    <label className="aform-field-label">Código de fórmula</label>
-                    <input
-                      className="aform-field-input"
-                      placeholder="Ej: FMAMPARA1"
-                      value={form.codf}
-                      onChange={e => setForm(f => ({ ...f, codf: e.target.value.toUpperCase() }))}
-                      style={{ fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.05em" }}
-                    />
-                  </div>
-                  <div className="aform-field-group">
-                    <label className="aform-field-label">Expresión — escribí o insertá con el botón de cada slot</label>
-                    <textarea
-                      ref={formulaRef}
-                      className="aform-formula-textarea"
-                      placeholder="Ej: FORM_FVIDESM + FORM_FPPFIJO * cantidad"
-                      value={form.form}
-                      onChange={e => setForm(f => ({ ...f, form: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div className="aform-constructor-hint">
-                  💡 Elegí una fórmula en cada slot y presioná <strong style={{ margin: "0 3px" }}>Insertar →</strong> para agregarla a la expresión en la posición del cursor. Podés escribir cualquier operador entre ellas.
-                </div>
-              </div>
-
               {/* ── Slots ── */}
-              <div className="aform-section-label">Fórmulas de los slots</div>
+              <div className="aform-section-label">Fórmulas asociadas (hasta 10)</div>
               <div className="aform-slots-grid">
                 {SLOTS.map(n => {
                   const codformSlot = form[`codf${n}`];
@@ -615,14 +601,6 @@ export default function AsociacionesForm({
                     <div key={n} className="aform-slot-card">
                       <div className="aform-slot-card-header">
                         <div className="aform-slot-number">Form {n}</div>
-                        <button
-                          className={`aform-slot-insert-btn ${codformSlot ? "active" : ""}`}
-                          disabled={!codformSlot}
-                          onClick={() => insertarSlot(codformSlot)}
-                          title={codformSlot ? `Insertar FORM_${codformSlot}` : "Elegí una fórmula primero"}
-                        >
-                          Insertar →
-                        </button>
                       </div>
                       {/* Filtro rubro (solo organización visual) */}
                       <select className="aform-slot-select" value={rubroSlots[n]}
@@ -662,7 +640,7 @@ export default function AsociacionesForm({
               </div>
 
             </div>
-          </div>
+          </>
         )}
 
       </div>
