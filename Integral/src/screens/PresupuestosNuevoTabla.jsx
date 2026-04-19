@@ -349,19 +349,34 @@ export default function PresupuestosNuevoTabla({ onAbrirPresupuesto }) {
                   <th>Fecha</th>
                   <th>Cliente</th>
                   <th>Total</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {revisiones.map((r) => (
                   <tr key={r.id}>
                     <td>
-                      <span className={`rev-badge ${Number(r.revision ?? r.REVISION) <= 1 ? "rev-badge-0" : "rev-badge-n"}`}>
-                        Rev. {r.revision ?? r.REVISION ?? 1}
+                      <span className={`rev-badge ${Number(r.revision ?? r.REVISION) === 0 ? "rev-badge-0" : "rev-badge-n"}`}>
+                        Rev. {String(r.revision ?? r.REVISION ?? 0).padStart(2, "0")}
                       </span>
                     </td>
                     <td>{formatFecha(r.fecha ?? r.FECHA)}</td>
                     <td>{r.nombre ?? r.NOMBRE ?? "—"}</td>
                     <td style={{ fontWeight: 700, color: "#0f2944" }}>{formatPeso(r.valor ?? r.VALOR)}</td>
+                    <td>
+                      {onAbrirPresupuesto && (
+                        <button
+                          className="btn-abrir"
+                          style={{ padding: "3px 10px", fontSize: 11 }}
+                          onClick={() => {
+                            setModalHistorial(false);
+                            onAbrirPresupuesto(r);
+                          }}
+                        >
+                          📝 Abrir
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

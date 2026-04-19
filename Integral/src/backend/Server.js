@@ -1463,15 +1463,21 @@ app.get("/tabla-presupuestos/proximo-numero", (req, res) => {
   );
 });
 
-// GET items de tabla_presupuestos (filtrable por numeropres)
+// GET items de tabla_presupuestos (filtrable por numeropres y revision)
 app.get("/tabla-presupuestos", (req, res) => {
-  const { numeropres } = req.query;
+  const { numeropres, revision } = req.query;
   let sql = "SELECT * FROM tabla_presupuestos";
   const params = [];
+  const conds = [];
   if (numeropres) {
-    sql += " WHERE numeropres = ?";
+    conds.push("numeropres = ?");
     params.push(numeropres);
   }
+  if (revision !== undefined && revision !== "") {
+    conds.push("revision = ?");
+    params.push(Number(revision));
+  }
+  if (conds.length) sql += " WHERE " + conds.join(" AND ");
   sql += " ORDER BY id ASC";
   db.query(sql, params, (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -1611,7 +1617,7 @@ app.post("/tabla-presupuestos", (req, res) => {
         [numFinal],
         (err, rows) => {
           if (err) return res.status(500).json({ error: err.message });
-          const nuevaRev = (rows[0]?.max_rev ?? 0) + 1;
+          const nuevaRev = parseInt(rows[0]?.max_rev ?? 0, 10) + 1;
           const filaIndice = {
             numeropres: Number(numFinal),
             nombre:     nombreCliente,
@@ -1663,65 +1669,55 @@ app.post("/tabla-presupuestos", (req, res) => {
 
   // ── Pasos 2-4: borrar items anteriores e insertar los nuevos ────────────
   guardarIndice((numeroPres, revision) => {
-    db.query(
-      "DELETE FROM tabla_presupuestos WHERE numeropres = ?",
-      [numeroPres],
-      (err) => {
-        if (err) return res.status(500).json({ error: err.message });
 
-        if (filas.length === 0) {
-          return res.json({ numero: numeroPres, revision, insertados: 0 });
+    if (filas.length === 0) {
+      return res.json({ numero: numeroPres, revision, insertados: 0 });
+    }
+
+    // Siempre INSERT — nunca DELETE.
+    // Cada guardado queda registrado con su número de revisión (REV0, REV1, REV2...).
+    let pendientes = filas.length;
+    let errGlobal  = null;
+
+    filas.forEach((it) => {
+      const filaItem = {
+        numeropres:  numeroPres,
+        nombre:      nombreCliente,
+        articulo:    it.descripcion  ?? it.articulo  ?? null,
+        nombreart:   it.nombreart    ?? it.nombrart  ?? null,
+        tipo:        it.seccion      ?? it.tipo      ?? null,
+        cantidad:    parseFloat(it.cantidad) || 1,
+        revision:    Number(revision),
+        // Línea 1
+        linea1:      lineasArr[0] ?? null,
+        valor1:      parseFloat(it.precios?.[0]?.precio ?? it.valor1 ?? it.precio) || null,
+        margen1:     it.porcentaje1 ?? null,
+        // Línea 2
+        linea2:      lineasArr[1] ?? null,
+        valor2:      parseFloat(it.precios?.[1]?.precio ?? it.valor2) || null,
+        margen2:     it.porcentaje2 ?? null,
+        // Línea 3
+        linea3:      lineasArr[2] ?? null,
+        valor3:      parseFloat(it.precios?.[2]?.precio ?? it.valor3) || null,
+        margen3:     it.porcentaje3 ?? null,
+      };
+
+      Object.keys(filaItem).forEach(k => {
+        if (filaItem[k] === null) delete filaItem[k];
+      });
+
+      db.query("INSERT INTO tabla_presupuestos SET ?", filaItem, (err2) => {
+        if (err2 && !errGlobal) {
+          errGlobal = err2;
+          console.error("Error INSERT tabla_presupuestos:", err2.message, "| fila:", JSON.stringify(filaItem));
         }
-
-        // Una fila por artículo con linea1/valor1/margen1, linea2/valor2/margen2, linea3/valor3/margen3
-        let pendientes = filas.length;
-        let errGlobal  = null;
-
+        pendientes--;
         if (pendientes === 0) {
-          return res.json({ numero: numeroPres, revision, insertados: 0 });
+          if (errGlobal) return res.status(500).json({ error: errGlobal.message });
+          res.json({ numero: numeroPres, revision, insertados: filas.length });
         }
-
-        filas.forEach((it) => {
-          const filaItem = {
-            numeropres:  numeroPres,
-            nombre:      nombreCliente,
-            articulo:    it.descripcion  ?? it.articulo  ?? null,
-            nombreart:   it.nombreart    ?? it.nombrart  ?? null,
-            tipo:        it.seccion      ?? it.tipo      ?? null,
-            cantidad:    parseFloat(it.cantidad) || 1,
-            revision:    String(revision),
-            // Línea 1
-            linea1:      lineasArr[0] ?? null,
-            valor1:      parseFloat(it.precios?.[0]?.precio ?? it.valor1 ?? it.precio) || null,
-            margen1:     it.porcentaje1 ?? null,
-            // Línea 2
-            linea2:      lineasArr[1] ?? null,
-            valor2:      parseFloat(it.precios?.[1]?.precio ?? it.valor2) || null,
-            margen2:     it.porcentaje2 ?? null,
-            // Línea 3
-            linea3:      lineasArr[2] ?? null,
-            valor3:      parseFloat(it.precios?.[2]?.precio ?? it.valor3) || null,
-            margen3:     it.porcentaje3 ?? null,
-          };
-
-          Object.keys(filaItem).forEach(k => {
-            if (filaItem[k] === null) delete filaItem[k];
-          });
-
-          db.query("INSERT INTO tabla_presupuestos SET ?", filaItem, (err2) => {
-            if (err2 && !errGlobal) {
-              errGlobal = err2;
-              console.error("Error INSERT tabla_presupuestos:", err2.message, "| fila:", JSON.stringify(filaItem));
-            }
-            pendientes--;
-            if (pendientes === 0) {
-              if (errGlobal) return res.status(500).json({ error: errGlobal.message });
-              res.json({ numero: numeroPres, revision, insertados: filas.length });
-            }
-          });
-        });
-      }
-    );
+      });
+    });
   });
 });
 

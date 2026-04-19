@@ -318,7 +318,8 @@ export default function PresupuestoNuevo({
     const num = pres.numeropres ?? pres.id;
     try {
       // 1. Traer items de tabla_presupuestos
-      const r = await fetch(`${API}/tabla-presupuestos?numeropres=${num}`);
+      const rev = pres.revision ?? pres.REVISION ?? 0;
+      const r = await fetch(`${API}/tabla-presupuestos?numeropres=${num}&revision=${rev}`);
       const items = await r.json();
       if (!Array.isArray(items)) return;
 
@@ -329,12 +330,8 @@ export default function PresupuestoNuevo({
       setFecha((pres.fecha ?? pres.FECHA ?? "").slice(0, 10));
       setRevision(Number(pres.revision ?? pres.REVISION ?? 1));
       const listaGuardada = pres.lista ?? pres.LISTA ?? null;
-      if (listaGuardada) {
-        listaPendienteRef.current = listaGuardada;
-        setListaPrecio(listaGuardada);
-      }
+      if (listaGuardada) { listaPendienteRef.current = listaGuardada; setListaPrecio(listaGuardada); }
 
-      // Líneas desde items con fallback a pres
       const itemConLinea = items.find(it => it.linea1 ?? it.LINEA1) ?? items[0];
       const l1 = itemConLinea?.linea1 ?? itemConLinea?.LINEA1 ?? pres.linea1 ?? null;
       const l2 = itemConLinea?.linea2 ?? itemConLinea?.LINEA2 ?? pres.linea2 ?? null;
@@ -345,16 +342,14 @@ export default function PresupuestoNuevo({
         { linea: l3 ?? "[Sin líneas]", col2: "", col3: "" },
       ]);
 
-      // 3. Reconstruir cocinaItems y placardItems según tipo/seccion
       const nuevaCocina  = { bajomesadas: [], alacenas: [] };
       const nuevoPlacard = { placard: [] };
       const otrosItems   = [];
 
       items.forEach(it => {
-        const tipo      = (it.tipo ?? it.TIPO ?? "").toLowerCase();
+        const tipo = (it.tipo ?? it.TIPO ?? "").toLowerCase();
         const articulo  = it.articulo  ?? it.ARTICULO  ?? "";
         const nombreart = it.nombreart ?? it.NOMBREART ?? "";
-
         const v1 = parseFloat(it.valor1 ?? it.VALOR1) || null;
         const v2 = parseFloat(it.valor2 ?? it.VALOR2) || null;
         const v3 = parseFloat(it.valor3 ?? it.VALOR3) || null;
@@ -363,48 +358,30 @@ export default function PresupuestoNuevo({
           ...(l2 && v2 != null ? [{ linea: l2, precioBase: String(v2), precio: String(v2) }] : []),
           ...(l3 && v3 != null ? [{ linea: l3, precioBase: String(v3), precio: String(v3) }] : []),
         ];
-
         const fila = {
-          articulo,
-          nombreart,
-          cantidad:    parseFloat(it.cantidad ?? it.CANTIDAD) || 1,
-          precio:      String(v1 ?? 0),
-          precioBase:  String(v1 ?? 0),
-          precios,
-          preciosBase: precios.map(p => ({ linea: p.linea, precioBase: p.precioBase })),
-          margen:      it.margen  ?? null,
-          valor1:      v1,
-          porcentaje1: parseFloat(it.margen1 ?? it.MARGEN1) || null,
-          valor2:      v2,
-          porcentaje2: parseFloat(it.margen2 ?? it.MARGEN2) || null,
-          valor3:      v3,
-          porcentaje3: parseFloat(it.margen3 ?? it.MARGEN3) || null,
+          articulo, nombreart,
+          cantidad: parseFloat(it.cantidad ?? it.CANTIDAD) || 1,
+          precio: String(v1 ?? 0), precioBase: String(v1 ?? 0),
+          precios, preciosBase: precios.map(p => ({ linea: p.linea, precioBase: p.precioBase })),
+          margen: it.margen ?? null,
+          valor1: v1, porcentaje1: parseFloat(it.margen1 ?? it.MARGEN1) || null,
+          valor2: v2, porcentaje2: parseFloat(it.margen2 ?? it.MARGEN2) || null,
+          valor3: v3, porcentaje3: parseFloat(it.margen3 ?? it.MARGEN3) || null,
         };
-
-        if (tipo.includes("cocina") && tipo.includes("bajomesada")) {
-          nuevaCocina.bajomesadas.push(fila);
-        } else if (tipo.includes("cocina") && tipo.includes("alacena")) {
-          nuevaCocina.alacenas.push(fila);
-        } else if (tipo.includes("placard")) {
-          nuevoPlacard.placard.push(fila);
-        } else {
+        if (tipo.includes("cocina") && tipo.includes("bajomesada")) nuevaCocina.bajomesadas.push(fila);
+        else if (tipo.includes("cocina") && tipo.includes("alacena")) nuevaCocina.alacenas.push(fila);
+        else if (tipo.includes("placard")) nuevoPlacard.placard.push(fila);
+        else {
           const precio0 = v1 ?? 0;
           otrosItems.push({
-            id:          `otros-${it.id}`,
-            seccion:     it.tipo ?? it.TIPO ?? "Otros",
-            descripcion: articulo,
-            nombreart,
-            cantidad:    parseFloat(it.cantidad ?? it.CANTIDAD) || 1,
-            precio:      precio0,
-            subtotal:    precio0 * (parseFloat(it.cantidad ?? it.CANTIDAD) || 1),
-            precios,
-            margen:      it.margen  ?? null,
-            valor1:      v1,
-            porcentaje1: parseFloat(it.margen1 ?? it.MARGEN1) || null,
-            valor2:      v2,
-            porcentaje2: parseFloat(it.margen2 ?? it.MARGEN2) || null,
-            valor3:      v3,
-            porcentaje3: parseFloat(it.margen3 ?? it.MARGEN3) || null,
+            id: `otros-${it.id}`, seccion: it.tipo ?? it.TIPO ?? "Otros",
+            descripcion: articulo, nombreart,
+            cantidad: parseFloat(it.cantidad ?? it.CANTIDAD) || 1,
+            precio: precio0, subtotal: precio0 * (parseFloat(it.cantidad ?? it.CANTIDAD) || 1),
+            precios, margen: it.margen ?? null,
+            valor1: v1, porcentaje1: parseFloat(it.margen1 ?? it.MARGEN1) || null,
+            valor2: v2, porcentaje2: parseFloat(it.margen2 ?? it.MARGEN2) || null,
+            valor3: v3, porcentaje3: parseFloat(it.margen3 ?? it.MARGEN3) || null,
           });
         }
       });
@@ -640,7 +617,7 @@ export default function PresupuestoNuevo({
     setPlacardEditIdx(idx);
   };
 
-  const handleGuardar = async () => {
+  const handleGuardar = async (esNuevaRev = false) => {
     if (!cliente.trim()) { setError("El cliente es obligatorio."); return; }
     setError(""); setGuardando(true);
 
@@ -652,32 +629,23 @@ export default function PresupuestoNuevo({
     const lineasElegidas = lineas
       .filter(l => l.linea && l.linea !== "[Sin líneas]")
       .map(l => l.linea);
-
     const payload = {
       ...(esEdicion ? { numero: numeroPres } : {}),
-      nombre:         cliente,
-      fecha:          fecha,
-      lista:          listaPrecio,
+      nombre: cliente, fecha, lista: listaPrecio,
       lineasElegidas,
+      ...(esNuevaRev ? { nuevaRevision: true } : {}),
       items: presupuestoItems.map(it => {
         const v1 = parseFloat(it.precios?.[0]?.precio ?? it.valor1 ?? it.precio) || null;
         const v2 = parseFloat(it.precios?.[1]?.precio ?? it.valor2) || null;
         const v3 = parseFloat(it.precios?.[2]?.precio ?? it.valor3) || null;
         return {
-          descripcion: it.descripcion,
-          nombreart:   it.nombreart ?? "",
-          seccion:     it.seccion,
-          cantidad:    it.cantidad,
-          precio:      it.precio,
-          subtotal:    it.subtotal,
-          margen:      it.margen      ?? null,
-          valor1:      v1,
-          porcentaje1: it.porcentaje1 ?? null,
-          valor2:      v2,
-          porcentaje2: it.porcentaje2 ?? null,
-          valor3:      v3,
-          porcentaje3: it.porcentaje3 ?? null,
-          precios:     it.precios     ?? [],
+          descripcion: it.descripcion, nombreart: it.nombreart ?? "",
+          seccion: it.seccion, cantidad: it.cantidad,
+          precio: it.precio, subtotal: it.subtotal, margen: it.margen ?? null,
+          valor1: v1, porcentaje1: it.porcentaje1 ?? null,
+          valor2: v2, porcentaje2: it.porcentaje2 ?? null,
+          valor3: v3, porcentaje3: it.porcentaje3 ?? null,
+          precios: it.precios ?? [],
         };
       }),
     };
@@ -1051,9 +1019,15 @@ export default function PresupuestoNuevo({
             style={{ background: "#e8f5e9", borderColor: "#4caf50", color: "#1b5e20", fontWeight: 700 }}>
             🔄 Actualizar
           </button>
-          <button className="pn-tool-btn save" onClick={handleGuardar} disabled={guardando}>
+          <button className="pn-tool-btn save" onClick={() => handleGuardar(false)} disabled={guardando}>
             💾 {guardando ? "Guardando..." : "Guardar"}
           </button>
+          {numeroPres !== null && (
+            <button className="pn-tool-btn" onClick={() => handleGuardar(true)} disabled={guardando}
+              style={{ background: "#fff3cd", borderColor: "#ffc107", color: "#856404", fontWeight: 700 }}>
+              🔖 Nueva Revisión
+            </button>
+          )}
         </div>
 
         {/* Tabs */}
