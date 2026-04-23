@@ -93,6 +93,7 @@ export default function App() {
   const [vanitoryModelo, setVanitoryModelo] = useState(null);
   // ── Navegación interna Amoblamiento ─────────────────────
   const [amoblamientoVista, setAmoblamientoVista] = useState("selector");
+  const [presupuestoAbierto, setPresupuestoAbierto] = useState(null);
 
   const addLog = (msg) => setLog((prev) => [msg, ...prev.slice(0, 4)]);
 
@@ -523,9 +524,10 @@ export default function App() {
             )}
             {screen === "presupuesto-nuevo" && (
               <PresupuestoNuevo
-                onVolver={() => setScreen(null)}
+                onVolver={() => { setScreen(null); setPresupuestoAbierto(null); }}
                 onGuardado={() => {}}
                 onVerTabla={() => setScreen("presupuestos-nuevo-tabla")}
+                presupuestoInicial={presupuestoAbierto}
                 tiposVanitory={tiposVanitory}
                 tiposVanitoryRUD={tiposVanitoryRUD}
               />
@@ -533,6 +535,7 @@ export default function App() {
             {screen === "presupuestos-nuevo-tabla" && (
               <PresupuestosNuevoTabla
                 onAbrirPresupuesto={(row) => {
+                  setPresupuestoAbierto(row);
                   setScreen("presupuesto-nuevo");
                 }}
               />

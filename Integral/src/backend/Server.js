@@ -396,10 +396,13 @@ app.get("/articulos/por-rubro", (req, res) => {
   });
 });
 
-// Artículos con familia que contenga MAMPARA — para presupuesto mamparas
+// Artículos con familia/rubro MAMPARA y proveedor DANIEL ROQUE SRL — para presupuesto mamparas
 app.get("/productos/mamparas", (req, res) => {
   db.query(
-    "SELECT * FROM articulos WHERE UPPER(familia) LIKE '%MAMPARA%' OR UPPER(rubro) LIKE '%MAMPARA%' ORDER BY familia, articulo",
+    `SELECT * FROM articulos
+     WHERE (UPPER(familia) LIKE '%MAMPARA%' OR UPPER(rubro) LIKE '%MAMPARA%')
+       AND UPPER(proveedor) = 'DANIEL ROQUE SRL'
+     ORDER BY familia, articulo`,
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(result);
@@ -410,7 +413,10 @@ app.get("/productos/mamparas", (req, res) => {
 // Familias distintas de artículos tipo mampara (para debug)
 app.get("/productos/mamparas/familias", (req, res) => {
   db.query(
-    "SELECT DISTINCT familia FROM articulos WHERE UPPER(familia) LIKE '%MAMPARA%' OR UPPER(rubro) LIKE '%MAMPARA%' ORDER BY familia",
+    `SELECT DISTINCT familia FROM articulos
+     WHERE (UPPER(familia) LIKE '%MAMPARA%' OR UPPER(rubro) LIKE '%MAMPARA%')
+       AND UPPER(proveedor) = 'DANIEL ROQUE SRL'
+     ORDER BY familia`,
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(result.map((r) => r.familia));

@@ -39,6 +39,7 @@ const FIELDS_LEFT_BOTTOM = [
   { field: "costosi",   label: "Costo sin impuestos",   placeholder: "Ej: 45000" },
   { field: "costosicf", label: "Costo con flete",       placeholder: "Ej: 52000" },
   { field: "precio",    label: "Precio ($)",            placeholder: "Ej: 58000" },
+  { field: "proveedor", label: "Proveedor",             placeholder: "Ej: Legho" },
   { field: "cantidad",  label: "Cantidad",              placeholder: "Ej: 1" },
 ];
 
@@ -163,25 +164,6 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
   const [rubroEsNuevo, setRubroEsNuevo]     = useState(false);
   const [nuevoRubro, setNuevoRubro]         = useState("");
 
-  // Proveedores
-  const [proveedores, setProveedores] = useState([]);
-  const [provSearch, setProvSearch]   = useState("");
-  const [provFocus, setProvFocus]     = useState(false);
-
-  useEffect(() => {
-    fetch(`${API}/proveedores`)
-      .then(r => r.json())
-      .then(data => setProveedores(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, []);
-
-  const proveedoresFiltrados = provSearch.trim().length > 0
-    ? proveedores.filter(p =>
-        (p.provnombre ?? "").toLowerCase().includes(provSearch.toLowerCase()) ||
-        (p.fantasia   ?? "").toLowerCase().includes(provSearch.toLowerCase())
-      ).slice(0, 8)
-    : proveedores.slice(0, 8);
-
   // Cargar familias únicas
   useEffect(() => {
     fetch(`${API}/articulos/familias-todas`)
@@ -261,7 +243,6 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
   const openNew = () => {
     setForm(EMPTY); setError("");
     setFamiliaEsNueva(false); setRubroEsNuevo(false); setNuevoRubro("");
-    setProvSearch(""); setProvFocus(false);
     onOpenModal("nuevo");
   };
 
@@ -289,7 +270,6 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
     });
     setError("");
     setFamiliaEsNueva(false); setRubroEsNuevo(false); setNuevoRubro("");
-    setProvSearch(s(selected.proveedor)); setProvFocus(false);
     onOpenModal("editar");
   };
 
@@ -485,51 +465,6 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
               </div>
 
               {FIELDS_LEFT_BOTTOM.map((f) => <FormField key={f.field} {...f} form={form} setForm={setForm} />)}
-
-              {/* Proveedor — ligado a tabla proveedor */}
-              <div className="form-group" style={{ position: "relative" }}>
-                <label className="form-label">Proveedor</label>
-                <input
-                  className="form-input"
-                  placeholder="Buscar proveedor..."
-                  value={provSearch}
-                  autoComplete="off"
-                  onChange={e => {
-                    setProvSearch(e.target.value);
-                    setForm(p => ({ ...p, proveedor: e.target.value }));
-                    setProvFocus(true);
-                  }}
-                  onFocus={() => setProvFocus(true)}
-                  onBlur={() => setTimeout(() => setProvFocus(false), 180)}
-                />
-                {provFocus && proveedoresFiltrados.length > 0 && (
-                  <div style={{
-                    position: "absolute", zIndex: 999, background: "#fff",
-                    border: "1px solid #b8cfe0", borderRadius: 3, width: "100%",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.12)", maxHeight: 220, overflowY: "auto",
-                  }}>
-                    {proveedoresFiltrados.map(p => (
-                      <div
-                        key={p.id}
-                        style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid #f0f4f8" }}
-                        onMouseDown={() => {
-                          const nombre = p.fantasia || p.provnombre;
-                          setForm(f => ({ ...f, proveedor: nombre }));
-                          setProvSearch(nombre);
-                          setProvFocus(false);
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = "#ddeefa"}
-                        onMouseLeave={e => e.currentTarget.style.background = "#fff"}
-                      >
-                        <strong>{p.provnombre}</strong>
-                        {p.fantasia && p.fantasia !== p.provnombre && (
-                          <span style={{ color: "#6699bb", marginLeft: 6, fontSize: 11 }}>({p.fantasia})</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
 
               {form.area === "2" && (
                 <FormField field="costo_placa" label="Costo placa" placeholder="Ej: 38000" form={form} setForm={setForm} />

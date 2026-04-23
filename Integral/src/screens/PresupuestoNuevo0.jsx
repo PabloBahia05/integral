@@ -236,61 +236,6 @@ export default function PresupuestoNuevo({
     cerrarPopover();
   };
 
-  // ── Popover de edición inline de ítem en Presupuesto ───
-  const [presItemPopover, setPresItemPopover] = useState(null); // { id, lineaIdx (null = sin líneas), precioActual, rect }
-  const [presItemModo, setPresItemModo] = useState("valor"); // "valor" | "porcentaje"
-  const [presItemInput, setPresItemInput] = useState("");
-
-  const abrirPresItemPopover = (id, lineaIdx, precioActual, e) => {
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    setPresItemPopover({ id, lineaIdx, precioActual, rect });
-    setPresItemModo("valor");
-    setPresItemInput(String(precioActual ?? ""));
-  };
-
-  const cerrarPresItemPopover = () => {
-    setPresItemPopover(null);
-    setPresItemInput("");
-  };
-
-  const confirmarPresItemPopover = () => {
-    if (!presItemPopover) return;
-    const val = parseFloat(presItemInput);
-    if (isNaN(val)) { cerrarPresItemPopover(); return; }
-    const { id, lineaIdx, precioActual } = presItemPopover;
-
-    const calcNuevo = (base) => {
-      const b = parseFloat(base) || 0;
-      if (presItemModo === "valor") return val < 0 ? Math.max(0, b + val) : val;
-      return Math.round(b * (1 + val / 100) * 100) / 100;
-    };
-
-    setPresupuestoItems((prev) =>
-      prev.map((it) => {
-        if (it.id !== id) return it;
-        if (lineaIdx == null) {
-          // Sin líneas activas → precio único
-          const nuevo = calcNuevo(it.precio);
-          return { ...it, precio: nuevo, subtotal: nuevo * (parseFloat(it.cantidad) || 1) };
-        }
-        // Con líneas activas → actualizar precio de esa línea
-        const precios = (it.precios ?? []).map((p, li) => {
-          if (li !== lineaIdx) return p;
-          return { ...p, precio: String(calcNuevo(p.precio)) };
-        });
-        const nuevoPrecio = parseFloat(precios[0]?.precio ?? it.precio) || 0;
-        return {
-          ...it,
-          precios,
-          precio: nuevoPrecio,
-          subtotal: nuevoPrecio * (parseFloat(it.cantidad) || 1),
-        };
-      })
-    );
-    cerrarPresItemPopover();
-  };
-
   // ── Ajuste de precios ────────────────────────────────────
   const [ajusteModo, setAjusteModo] = useState("porcentaje"); // "porcentaje" | "monto"
   const [ajusteValor, setAjusteValor] = useState("");
@@ -1293,70 +1238,6 @@ export default function PresupuestoNuevo({
                       : precioPopover.porcentajeActual != null
                         ? `% actual: ${precioPopover.porcentajeActual > 0 ? "+" : ""}${precioPopover.porcentajeActual}% · Positivo = aumento · Negativo = descuento`
                         : "Positivo = aumento · Negativo = descuento"}
-                  </div>
-                </div>
-              </>
-            );
-          })()}
-
-        {/* ── Popover de edición de precio en solapa Presupuesto ── */}
-        {presItemPopover &&
-          (() => {
-            const rect = presItemPopover.rect;
-            const top = Math.min(rect.bottom + 6, window.innerHeight - 200);
-            const left = Math.min(rect.left, window.innerWidth - 260);
-            return (
-              <>
-                <div className="pn-popover-backdrop" onClick={cerrarPresItemPopover} />
-                <div
-                  className="pn-popover"
-                  style={{ top, left }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="pn-popover-title">Editar precio</div>
-                  <div className="pn-pop-toggle">
-                    <button
-                      className={presItemModo === "valor" ? "active" : ""}
-                      onClick={() => {
-                        setPresItemModo("valor");
-                        setPresItemInput(String(presItemPopover.precioActual ?? ""));
-                      }}
-                    >
-                      $ Monto
-                    </button>
-                    <button
-                      className={presItemModo === "porcentaje" ? "active" : ""}
-                      onClick={() => {
-                        setPresItemModo("porcentaje");
-                        setPresItemInput("");
-                      }}
-                    >
-                      % Porcentaje
-                    </button>
-                  </div>
-                  <div className="pn-pop-input-row">
-                    <span style={{ color: "#6699bb", fontSize: 13 }}>
-                      {presItemModo === "valor" ? "$" : "%"}
-                    </span>
-                    <input
-                      autoFocus
-                      type="number"
-                      className="pn-pop-input"
-                      value={presItemInput}
-                      onChange={(e) => setPresItemInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") confirmarPresItemPopover();
-                        if (e.key === "Escape") cerrarPresItemPopover();
-                      }}
-                      placeholder={presItemModo === "valor" ? "Nuevo precio" : "ej: 10 ó -5"}
-                    />
-                    <button className="pn-pop-confirm" onClick={confirmarPresItemPopover}>✓</button>
-                    <button className="pn-pop-cancel" onClick={cerrarPresItemPopover}>✕</button>
-                  </div>
-                  <div className="pn-pop-hint">
-                    {presItemModo === "valor"
-                      ? `Precio actual: $${Number(presItemPopover.precioActual).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`
-                      : "Positivo = aumento · Negativo = descuento"}
                   </div>
                 </div>
               </>
@@ -4951,22 +4832,10 @@ export default function PresupuestoNuevo({
                                           textAlign: "right",
                                         }}
                                       >
-                                        <span
-                                          className="pn-precio-cell"
-                                          onClick={(e) =>
-                                            abrirPresItemPopover(
-                                              item.id,
-                                              li,
-                                              parseFloat(pr) || 0,
-                                              e,
-                                            )
-                                          }
-                                        >
-                                          $
-                                          {Number(pr).toLocaleString("es-AR", {
-                                            minimumFractionDigits: 2,
-                                          })}
-                                        </span>
+                                        $
+                                        {Number(pr).toLocaleString("es-AR", {
+                                          minimumFractionDigits: 2,
+                                        })}
                                         {listaPorcentaje !== 0 && (
                                           <span
                                             style={{
@@ -4990,23 +4859,11 @@ export default function PresupuestoNuevo({
                                       textAlign: "right",
                                     }}
                                   >
-                                    <span
-                                      className="pn-precio-cell"
-                                      onClick={(e) =>
-                                        abrirPresItemPopover(
-                                          item.id,
-                                          null,
-                                          parseFloat(item.precio) || 0,
-                                          e,
-                                        )
-                                      }
-                                    >
-                                      $
-                                      {Number(item.precio).toLocaleString(
-                                        "es-AR",
-                                        { minimumFractionDigits: 2 },
-                                      )}
-                                    </span>
+                                    $
+                                    {Number(item.precio).toLocaleString(
+                                      "es-AR",
+                                      { minimumFractionDigits: 2 },
+                                    )}
                                   </td>
                                 )}
                                 <td

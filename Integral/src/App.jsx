@@ -542,29 +542,12 @@ export default function App() {
             )}
             {screen === "presupuesto-amoblamiento" && amoblamientoVista === "selector" && (
               <PresupuestoAmoblamiento
-                onBuscar={() => setAmoblamientoVista("buscar")}
-                onNuevo={() => setAmoblamientoVista("nuevo")}
+                onBuscar={() => setScreen("presupuestos-nuevo-tabla")}
+                onNuevo={() => { setPresupuestoAbierto(null); setScreen("presupuesto-nuevo"); }}
                 onVolver={() => setScreen(null)}
               />
             )}
-            {screen === "presupuesto-amoblamiento" && amoblamientoVista === "buscar" && (
-              <div style={{ padding: "40px", color: "#0a3a5c", fontFamily: "'Space Mono',monospace" }}>
-                🔍 Pantalla de búsqueda de amoblamiento — próximamente
-                <br />
-                <button style={{ marginTop: 16, cursor: "pointer" }} onClick={() => setAmoblamientoVista("selector")}>
-                  ← Volver
-                </button>
-              </div>
-            )}
-            {screen === "presupuesto-amoblamiento" && amoblamientoVista === "nuevo" && (
-              <div style={{ padding: "40px", color: "#0a3a5c", fontFamily: "'Space Mono',monospace" }}>
-                ✏️ Formulario nuevo presupuesto amoblamiento — próximamente
-                <br />
-                <button style={{ marginTop: 16, cursor: "pointer" }} onClick={() => setAmoblamientoVista("selector")}>
-                  ← Volver
-                </button>
-              </div>
-            )}
+
             {screen === "presupuestos-vanitory-tabla" && (
               <PresupuestosVanitoryTabla
                 presupuestos={presupuestosVanitory}
