@@ -13,6 +13,7 @@ import PresupuestosVanitoryTabla from "./screens/PresupuestosVanitoryTabla";
 import PresupuestoAmoblamiento from "./screens/PresupuestoAmoblamiento";
 import PresupuestoNuevo from "./screens/PresupuestoNuevo";
 import PresupuestosNuevoTabla from "./screens/PresupuestosNuevoTabla";
+import MuebleEspecial from "./screens/MuebleEspecial";
 import ActionButton from "./Component/ActionButton";
 import { useEffect, useState } from "react";
 
@@ -31,20 +32,18 @@ const SCREENS = {
   "presupuesto-nuevo": { label: "PRESUPUESTO NUEVO", icon: "📝" },
   "lista-margenes":       { label: "LISTA DE MÁRGENES", icon: "📊" },
   "presupuestos-nuevo-tabla": { label: "PRESUPUESTOS", icon: "📋" },
+  "mueble-especial":      { label: "MUEBLE ESPECIAL", icon: "🪚" },
 };
 
 const buttons = [
   { id: 1, label: "CLIENTES", icon: "👥", color: "#eb56d7", screen: "clientes" },
   { id: 2, label: "PRODUCTOS", icon: "🛒", color: "#ff6b6b", screen: "productos" },
-  { id: 4, label: "PRESUPUESTO MUEBLES", icon: "🪵", color: "#ffd93d", screen: "presupuesto-muebles" },
   { id: 5, label: "PRESUPUESTO MAMPARAS", icon: "🪟", color: "#c77dff", screen: "presupuesto-mamparas" },
   { id: 6, label: "PRESUP. NUEVO", icon: "📝", color: "#ff9a3c", screen: "presupuesto-nuevo" },
   { id: 7, label: "VER TABLAS", icon: "🗃️", color: "#00c9a7", screen: "ver-tablas" },
   { id: 8, label: "PRESUP. MAMPARAS", icon: "📋", color: "#4361ee", screen: "presupuestos-tabla" },
-  { id: 9, label: "PRESUP. VANITORY", icon: "🚿", color: "#06d6a0", screen: "presupuesto-vanitory" },
-  { id: 10, label: "REGISTRO VANITORY", icon: "🛁", color: "#f4845f", screen: "presupuestos-vanitory-tabla" },
   { id: 11, label: "PRESUP. AMOBLAMIENTO", icon: "🪑", color: "#7b61ff", screen: "presupuesto-amoblamiento" },
-  { id: 12, label: "LISTA MÁRGENES", icon: "📊", color: "#20b2aa", screen: "lista-margenes" },
+  { id: 12, label: "MUEBLE ESPECIAL",      icon: "🪚", color: "#e67e22", screen: "mueble-especial" },
 ];
 
 export default function App() {
@@ -436,6 +435,7 @@ export default function App() {
               "presupuestos-nuevo-tabla",
               "ver-tablas",
               "lista-margenes",
+              "mueble-especial",
             ].map((s) => (
               <button
                 key={s}
@@ -606,6 +606,9 @@ export default function App() {
                 selectedProveedor={selectedProveedor}
               />
             )}
+
+            {/* ── Mueble Especial ── */}
+            {screen === "mueble-especial" && <MuebleEspecial />}
 
             {/* ── Lista de Márgenes ── */}
             {screen === "lista-margenes" && (

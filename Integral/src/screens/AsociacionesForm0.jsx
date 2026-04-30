@@ -144,13 +144,14 @@ const styles = `
   .aform-modal-overlay {
     position: fixed; inset: 0; background: rgba(15,31,53,0.45);
     z-index: 1000;
+    pointer-events: none;
   }
   .aform-modal-box {
     background: #fff; border-radius: 18px;
     width: 100%; max-width: 860px; max-height: 92vh; overflow-y: auto;
     box-shadow: 0 24px 60px rgba(15,31,53,0.22); padding: 28px 32px 24px;
     position: fixed; pointer-events: all;
-    z-index: 1001;
+    user-select: none;
   }
   .aform-modal-header {
     display: flex; align-items: center; justify-content: space-between;
@@ -378,8 +379,7 @@ export default function AsociacionesForm({
 
   const openEdit = (row) => {
     setForm({ ...row }); setEditId(row.id);
-    setRubroPadre(row.rubro ?? "");
-    setFamiliaPadre(row.familia ?? "");
+    setRubroPadre(""); setFamiliaPadre("");
     setRubroSlots(Object.fromEntries(SLOTS.map(n => [n, ""])));
     setModalPos({ x: null, y: null });
     setModalOpen(true); onOpenModal?.("form");
@@ -565,7 +565,7 @@ export default function AsociacionesForm({
                 <div className="aform-field-group">
                   <label className="aform-field-label">Rubro</label>
                   <select className="aform-field-select" value={rubroPadre}
-                    onChange={e => { setRubroPadre(e.target.value); setForm(f => ({ ...f, rubro: e.target.value })); }}>
+                    onChange={e => { setRubroPadre(e.target.value); setForm(f => ({ ...f, articulo: "", codart: "", rubro: e.target.value })); }}>
                     <option value="">— Todos —</option>
                     {rubros.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
@@ -573,7 +573,7 @@ export default function AsociacionesForm({
                 <div className="aform-field-group">
                   <label className="aform-field-label">Familia</label>
                   <select className="aform-field-select" value={familiaPadre}
-                    onChange={e => { setFamiliaPadre(e.target.value); setForm(f => ({ ...f, familia: e.target.value })); }}>
+                    onChange={e => { setFamiliaPadre(e.target.value); setForm(f => ({ ...f, articulo: "", codart: "", familia: e.target.value })); }}>
                     <option value="">— Todas —</option>
                     {familias.map(f => <option key={f} value={f}>{f}</option>)}
                   </select>
@@ -583,9 +583,6 @@ export default function AsociacionesForm({
                   <select className="aform-field-select" value={form.articulo}
                     onChange={e => handlePadreChange(e.target.value)}>
                     <option value="">— Elegir artículo —</option>
-                    {form.articulo && !artsPadre.find(a => a.articulo === form.articulo) && (
-                      <option value={form.articulo}>{form.articulo}</option>
-                    )}
                     {artsPadre.map(a => <option key={a.codart} value={a.articulo}>{a.articulo}</option>)}
                   </select>
                 </div>

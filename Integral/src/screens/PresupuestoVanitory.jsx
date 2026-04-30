@@ -268,21 +268,31 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
 
   useEffect(() => {
     setCargandoInsumos(true);
+
+    // Helper: la tabla articulos ya tiene columnas articulo, codartint y precio directamente
+    const normalizar = p => ({
+      ...p,
+      articulo: p.articulo ?? p.ARTICULO ?? "",
+      codart:   p.codartint ?? p.CODARTINT ?? p.codart ?? "",
+      precio:   parseFloat(p.precio ?? p.PRECIO ?? 0) || 0,
+    });
+
     Promise.all([
-      fetch(`${API}/productos?rubro=${encodeURIComponent("MUEBLES")}&familia=${encodeURIComponent("INSUMOS")}&limit=500`)
+      // Placas: articulo LIKE %PLACA% AND proveedor != DANIEL ROQUE SRL
+      fetch(`${API}/productos/placas-vanitory`)
         .then(r => r.json())
-        .then(data => Array.isArray(data) ? data : [])
+        .then(data => (Array.isArray(data) ? data : []).map(normalizar))
         .catch(() => []),
-      fetch(`${API}/productos?familia=${encodeURIComponent("HERRAJES")}&limit=500`)
+      // Guías: articulo LIKE %GUIAS TELESCOPICAS%
+      fetch(`${API}/productos/guias-vanitory`)
         .then(r => r.json())
-        .then(data => (Array.isArray(data) ? data : []).filter(
-          p => (p.articulo ?? "").toLowerCase().includes("guia")
-        ))
+        .then(data => (Array.isArray(data) ? data : []).map(normalizar))
         .catch(() => []),
     ]).then(([mats, her]) => {
       setInsumosMuebles(mats);
       setHerrajes(her);
-      console.log("[Vanitory] Materiales:", mats.length, "| Correderas:", her.length);
+      console.log("[Vanitory] Placas:", mats.length, "| Guías:", her.length);
+      if (mats.length > 0) console.log("[Vanitory] Ejemplo placa:", mats[0]);
     }).finally(() => setCargandoInsumos(false));
   }, []);
 

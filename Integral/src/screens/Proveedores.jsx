@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ScreenHeader from "../Component/ScreenHeader";
 
 const EMPTY = {
@@ -9,10 +9,14 @@ const EMPTY = {
   telefono: "",
   telefono1: "",
   wapp: "",
+  domrem: "",
   ubicacion: "",
   cuit: "",
+  rubro: "",
   tipo_fact: "",
+  cod_postal: "",
   descuento: "",
+  flete: false,
 };
 
 const TIPO_COLORS = {
@@ -74,6 +78,8 @@ const FIELDS = [
   { label: "Nombre Fantasía", name: "fantasia", placeholder: "Nombre comercial" },
   { label: "Localidad", name: "localidad", placeholder: "" },
   { label: "Domicilio", name: "domicilio", placeholder: "" },
+  { label: "Dom. Remito", name: "domrem", placeholder: "Domicilio de remito" },
+  { label: "Código Postal", name: "cod_postal", placeholder: "" },
   { label: "CUIT", name: "cuit", placeholder: "20-12345678-9" },
   { label: "Teléfono", name: "telefono", placeholder: "" },
   { label: "Teléfono 2", name: "telefono1", placeholder: "" },
@@ -96,14 +102,35 @@ export default function Proveedores({
   const [form, setForm] = useState(EMPTY);
   const [search, setSearch] = useState("");
   const [focusedField, setFocusedField] = useState(null);
+  const [rubros, setRubros] = useState([]);
+  const [rubroEsNuevo, setRubroEsNuevo] = useState(false);
+  const [nuevoRubro, setNuevoRubro] = useState("");
 
-  const abrirCrear = () => { setForm(EMPTY); onOpenModal("crear"); };
-  const abrirEditar = (prov) => { setForm({ ...prov }); onSelect(prov); onOpenModal("editar"); };
+  const API = "http://localhost:3001";
+
+  useEffect(() => {
+    fetch(`${API}/proveedores/rubros`)
+      .then(r => r.json())
+      .then(data => setRubros(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  const abrirCrear = () => { setForm(EMPTY); setRubroEsNuevo(false); setNuevoRubro(""); onOpenModal("crear"); };
+  const abrirEditar = (prov) => { setForm({ ...prov }); setRubroEsNuevo(false); setNuevoRubro(""); onSelect(prov); onOpenModal("editar"); };
   const abrirEliminar = (prov) => { onSelect(prov); onOpenModal("eliminar"); };
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
+  const handleAgregarRubro = () => {
+    const r = nuevoRubro.trim().toUpperCase();
+    if (!r) return;
+    if (!rubros.includes(r)) setRubros(prev => [...prev, r].sort());
+    setForm(f => ({ ...f, rubro: r }));
+    setNuevoRubro("");
+    setRubroEsNuevo(false);
+  };
+
   const handleGuardar = () => {
     if (!form.provnombre?.trim()) return alert("El nombre del proveedor es obligatorio.");
     const payload = { ...form, cuit: form.cuit || null };
@@ -181,7 +208,7 @@ export default function Proveedores({
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: "#0d1f3c", borderBottom: "1px solid #1e3a5f" }}>
-              {["Proveedor", "Localidad", "Contacto", "CUIT", "Tipo Fact.", "Descuento", "Acciones"].map((h) => (
+              {["Proveedor", "Localidad", "Rubro", "Contacto", "CUIT", "Tipo Fact.", "Descuento", "Flete", "Acciones"].map((h) => (
                 <th key={h} style={{
                   padding: "0.85rem 1rem",
                   textAlign: "left",
@@ -199,7 +226,7 @@ export default function Proveedores({
           <tbody>
             {filtrados.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: "center", padding: "3rem", color: "#334155" }}>
+                <td colSpan={9} style={{ textAlign: "center", padding: "3rem", color: "#334155" }}>
                   <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🏭</div>
                   <div style={{ fontSize: "0.9rem" }}>No hay proveedores registrados</div>
                 </td>
@@ -230,6 +257,9 @@ export default function Proveedores({
                   <td style={{ padding: "0.85rem 1rem", color: "#94a3b8", fontSize: "0.85rem" }}>
                     {prov.localidad || <span style={{ color: "#334155" }}>—</span>}
                   </td>
+                  <td style={{ padding: "0.85rem 1rem", color: "#94a3b8", fontSize: "0.85rem" }}>
+                    {prov.rubro || <span style={{ color: "#334155" }}>—</span>}
+                  </td>
                   <td style={{ padding: "0.85rem 1rem" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       {prov.telefono && <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>📞 {prov.telefono}</span>}
@@ -246,6 +276,11 @@ export default function Proveedores({
                   <td style={{ padding: "0.85rem 1rem", color: "#94a3b8", fontSize: "0.85rem" }}>
                     {prov.descuento != null && prov.descuento !== ""
                       ? <span style={{ color: "#4ade80", fontWeight: 600 }}>{prov.descuento}%</span>
+                      : <span style={{ color: "#334155" }}>—</span>}
+                  </td>
+                  <td style={{ padding: "0.85rem 1rem", textAlign: "center" }}>
+                    {prov.flete
+                      ? <span style={{ color: "#4ade80", fontSize: "1rem" }}>✓</span>
                       : <span style={{ color: "#334155" }}>—</span>}
                   </td>
                   <td style={{ padding: "0.85rem 1rem" }}>
@@ -338,6 +373,49 @@ export default function Proveedores({
                   />
                 </label>
               ))}
+              {/* Rubro — desplegable con opción agregar nuevo */}
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: focusedField === "rubro" ? "#60a5fa" : "#475569", letterSpacing: "0.05em", textTransform: "uppercase", transition: "color 0.2s" }}>
+                  Rubro
+                </span>
+                {!rubroEsNuevo ? (
+                  <select
+                    name="rubro"
+                    value={form.rubro ?? ""}
+                    onChange={e => {
+                      if (e.target.value === "__nuevo__") { setRubroEsNuevo(true); return; }
+                      setForm(f => ({ ...f, rubro: e.target.value }));
+                    }}
+                    onFocus={() => setFocusedField("rubro")}
+                    onBlur={() => setFocusedField(null)}
+                    style={{ ...inputStyle, borderColor: focusedField === "rubro" ? "#2563eb" : "#1e3a5f", cursor: "pointer" }}
+                  >
+                    <option value="">— Sin rubro —</option>
+                    {rubros.map(r => <option key={r} value={r}>{r}</option>)}
+                    <option value="__nuevo__">＋ Agregar nuevo...</option>
+                  </select>
+                ) : (
+                  <div style={{ display: "flex", gap: "0.4rem" }}>
+                    <input
+                      autoFocus
+                      value={nuevoRubro}
+                      onChange={e => setNuevoRubro(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") handleAgregarRubro(); if (e.key === "Escape") { setRubroEsNuevo(false); setNuevoRubro(""); }}}
+                      placeholder="Nombre del rubro"
+                      style={{ ...inputStyle, borderColor: "#2563eb", flex: 1 }}
+                    />
+                    <button
+                      onClick={handleAgregarRubro}
+                      style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "0 14px", cursor: "pointer", fontWeight: 700, fontSize: "1rem" }}
+                    >✓</button>
+                    <button
+                      onClick={() => { setRubroEsNuevo(false); setNuevoRubro(""); }}
+                      style={{ background: "#1e3a5f", color: "#94a3b8", border: "none", borderRadius: 8, padding: "0 12px", cursor: "pointer", fontSize: "0.85rem" }}
+                    >✕</button>
+                  </div>
+                )}
+              </label>
+
               <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
                 <span style={{ fontSize: "0.75rem", fontWeight: 600, color: focusedField === "tipo_fact" ? "#60a5fa" : "#475569", letterSpacing: "0.05em", textTransform: "uppercase", transition: "color 0.2s" }}>
                   Tipo Facturación
@@ -360,6 +438,17 @@ export default function Proveedores({
                   <option value="C">C</option>
                   <option value="E">E</option>
                 </select>
+              </label>
+              {/* Flete — tinyint(1) */}
+              <label style={{ display: "flex", alignItems: "center", gap: "0.6rem", cursor: "pointer", gridColumn: "1 / -1", marginTop: "0.25rem" }}>
+                <input
+                  type="checkbox"
+                  name="flete"
+                  checked={!!form.flete}
+                  onChange={e => setForm(prev => ({ ...prev, flete: e.target.checked ? 1 : 0 }))}
+                  style={{ width: 18, height: 18, accentColor: "#2563eb", cursor: "pointer" }}
+                />
+                <span style={{ fontSize: "0.875rem", color: "#94a3b8", fontWeight: 500 }}>Tiene flete</span>
               </label>
             </div>
 

@@ -119,6 +119,28 @@ const CSS = `
 
 // ── Slot en modo edición ──────────────────────────────────────────────────────
 function SlotEdit({ n, form, setForm, listaSlot, rubroSlots, setRubroSlots, rubros, formulasList }) {
+  const [busqueda, setBusqueda] = useState("");
+  const [abierto,  setAbierto]  = useState(false);
+
+  const lista = listaSlot[n] ?? [];
+  const artActual = form[`art${n}`] ?? "";
+
+  const filtrados = busqueda.trim()
+    ? lista.filter(a => a.articulo.toLowerCase().includes(busqueda.toLowerCase()))
+    : lista;
+
+  const seleccionar = (a) => {
+    setForm(f => ({ ...f, [`art${n}`]: a.articulo, [`cod${n}`]: a.codartint ?? a.codart ?? "" }));
+    setBusqueda("");
+    setAbierto(false);
+  };
+
+  const limpiar = () => {
+    setForm(f => ({ ...f, [`art${n}`]: "", [`cod${n}`]: "" }));
+    setBusqueda("");
+    setAbierto(false);
+  };
+
   return (
     <div className="sc">
       <div className="sc-num">Art {n}</div>
@@ -126,18 +148,59 @@ function SlotEdit({ n, form, setForm, listaSlot, rubroSlots, setRubroSlots, rubr
         onChange={e => {
           setRubroSlots(p => ({ ...p, [n]: e.target.value }));
           setForm(f => ({ ...f, [`art${n}`]: "", [`cod${n}`]: "" }));
+          setBusqueda("");
         }}>
         <option value="">— Rubro —</option>
         {rubros.map(r => <option key={r} value={r}>{r}</option>)}
       </select>
-      <select className="sc-sel" value={form[`art${n}`] ?? ""} data-on={!!form[`art${n}`]}
-        onChange={e => {
-          const found = listaSlot[n].find(a => a.articulo === e.target.value);
-          setForm(f => ({ ...f, [`art${n}`]: e.target.value, [`cod${n}`]: found?.codart ?? "" }));
-        }}>
-        <option value="">— Ninguno —</option>
-        {listaSlot[n].map(a => <option key={a.id} value={a.articulo}>{a.articulo}</option>)}
-      </select>
+
+      {/* Buscador filtrable de material */}
+      <div style={{ position: "relative" }}>
+        <input
+          className="sc-sel"
+          style={{ paddingRight: artActual ? 22 : 8 }}
+          placeholder={artActual || "Buscar material..."}
+          value={busqueda}
+          onChange={e => { setBusqueda(e.target.value); setAbierto(true); }}
+          onFocus={() => setAbierto(true)}
+          onBlur={() => setTimeout(() => setAbierto(false), 180)}
+        />
+        {artActual && (
+          <span
+            onClick={limpiar}
+            style={{ position: "absolute", right: 5, top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "#94a3b8", fontSize: 11, lineHeight: 1 }}
+            title="Limpiar"
+          >✕</span>
+        )}
+        {abierto && filtrados.length > 0 && (
+          <div style={{
+            position: "absolute", zIndex: 999, top: "100%", left: 0, right: 0,
+            background: "#fff", border: "1.5px solid #bfdbfe", borderRadius: 8,
+            boxShadow: "0 8px 24px rgba(15,31,53,.13)", maxHeight: 200, overflowY: "auto",
+          }}>
+            {filtrados.map(a => (
+              <div
+                key={a.id}
+                onMouseDown={() => seleccionar(a)}
+                style={{
+                  padding: "6px 10px", cursor: "pointer", fontSize: 11,
+                  borderBottom: "1px solid #f0f4f8", color: "#1a2332",
+                  background: artActual === a.articulo ? "#eff4ff" : undefined,
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f0f6ff"}
+                onMouseLeave={e => e.currentTarget.style.background = artActual === a.articulo ? "#eff4ff" : "#fff"}
+              >
+                <div style={{ fontWeight: 500 }}>{a.articulo}</div>
+                {(a.codartint || a.codart) && (
+                  <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "monospace" }}>{a.codartint ?? a.codart}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <input className="sc-inp ro" value={artActual} readOnly placeholder="Artículo seleccionado" style={{ fontSize: 10 }} />
       <input className="sc-inp ro" value={form[`cod${n}`] ?? ""} readOnly placeholder="Código" />
       <input className="sc-mg" value={form[`margen${n}`] ?? ""}
         onChange={e => setForm(f => ({ ...f, [`margen${n}`]: e.target.value }))}
@@ -226,15 +289,26 @@ export default function Asociaciones({
     newRubroPadre ? articulosList.filter(a => a.rubro === newRubroPadre) : articulosList,
     [articulosList, newRubroPadre]);
 
+  const PROV_EXCLUIDO = "DANIEL ROQUE SRL";
+
+  const filtrarSlot = (lista, rubroSlot, rubroPadre) => {
+    let result = rubroSlot ? lista.filter(a => a.rubro === rubroSlot) : lista;
+    // Si el artículo padre es MUEBLES y el slot también es MUEBLES (o sin rubro), excluir Daniel Roque SRL
+    if (rubroPadre?.toUpperCase() === "MUEBLES" && (!rubroSlot || rubroSlot.toUpperCase() === "MUEBLES")) {
+      result = result.filter(a => (a.proveedor ?? "").toUpperCase() !== PROV_EXCLUIDO);
+    }
+    return result;
+  };
+
   const listaSlotEdit = useMemo(() =>
     Object.fromEntries(SLOTS.map(n => [n,
-      editRubroSlots[n] ? articulosList.filter(a => a.rubro === editRubroSlots[n]) : articulosList
-    ])), [articulosList, editRubroSlots]);
+      filtrarSlot(articulosList, editRubroSlots[n], editRubroPadre)
+    ])), [articulosList, editRubroSlots, editRubroPadre]);
 
   const listaSlotNew = useMemo(() =>
     Object.fromEntries(SLOTS.map(n => [n,
-      newRubroSlots[n] ? articulosList.filter(a => a.rubro === newRubroSlots[n]) : articulosList
-    ])), [articulosList, newRubroSlots]);
+      filtrarSlot(articulosList, newRubroSlots[n], newRubroPadre)
+    ])), [articulosList, newRubroSlots, newRubroPadre]);
 
   // iniciar edición inline
   const startEdit = (row) => {
@@ -373,7 +447,7 @@ export default function Asociaciones({
                                 <select className="ep-sel" value={editForm.articulo}
                                   onChange={e => {
                                     const found = listaPadreEdit.find(a=>a.articulo===e.target.value);
-                                    setEditForm(f=>({...f,articulo:e.target.value,codart:found?.codart??""}));
+                                    setEditForm(f=>({...f,articulo:e.target.value,codart:found?.codartint??""}));
                                   }}>
                                   <option value="">— Elegir —</option>
                                   {listaPadreEdit.map(a=><option key={a.id} value={a.articulo}>{a.articulo}</option>)}
@@ -432,7 +506,7 @@ export default function Asociaciones({
                   <select className="ep-sel" value={newForm.articulo}
                     onChange={e=>{
                       const found=listaPadreNew.find(a=>a.articulo===e.target.value);
-                      setNewForm(f=>({...f,articulo:e.target.value,codart:found?.codart??""}));
+                      setNewForm(f=>({...f,articulo:e.target.value,codart:found?.codartint??""}));
                     }}>
                     <option value="">— Elegir —</option>
                     {listaPadreNew.map(a=><option key={a.id} value={a.articulo}>{a.articulo}</option>)}

@@ -6,40 +6,67 @@ import ScreenHeader from "../Component/ScreenHeader";
 import ConfirmDelete from "../Component/ConfirmDelete";
 import FormField from "../Component/FormField";
 
-const COLUMNS = [
-  { key: "codart",    label: "Código" },
+const makeColumns = (onVer) => [
+  {
+    key: "__ver__",
+    label: "",
+    render: (_, row) => (
+      <button
+        title="Ver detalle"
+        onClick={(e) => { e.stopPropagation(); onVer(row); }}
+        style={{
+          background: "none", border: "1px solid #b8cfe0", borderRadius: 4,
+          cursor: "pointer", fontSize: 14, padding: "2px 7px", color: "#3a7abf",
+          lineHeight: 1,
+        }}
+      >Ver</button>
+    ),
+  },
+  { key: "codartint",  label: "Código Interno" },
+  { key: "proveedor",   label: "Proveedor" },
   { key: "articulo",  label: "Artículo" },
   { key: "rubro",     label: "Rubro" },
+  { key: "familia",   label: "Familia" },
   { key: "unidad",    label: "Unidad" },
+  { key: "valorlista", label: "Val. Lista",  render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
+  { key: "costosi",   label: "Costo s/imp.",    render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
+  { key: "costosicf", label: "Costo s/imp. c/flete", render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
+  { key: "costocicf", label: "Costo c/imp. c/flete", render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
   { key: "precio",    label: "Precio", render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
+  { key: "descuento", label: "Descuento %", render: (v) => v != null ? `${parseFloat(v)}%` : "-" },
+  { key: "flete",     label: "Flete",  render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
   { key: "proveedor", label: "Proveedor" },
   { key: "cantidad",  label: "Cantidad" },
   { key: "ancho",     label: "Ancho" },
   { key: "alto",      label: "Alto" },
   { key: "linea",  label: "Línea" },
   { key: "color",     label: "Color" },
-  { key: "familia",   label: "Familia" },
   { key: "area",      label: "Área" },
+  { key: "codprov",   label: "Cód. Proveedor" },
+  { key: "codfam",    label: "Cód. Familia" },
+  { key: "codrub",    label: "Cód. Rubro" },
 ];
 
 const EMPTY = {
-  codart: "", articulo: "", area: "", unidad: "", artfoto: "",
+  codartint: "", articulo: "", area: "", unidad: "", artfoto: "",
   precio: "", proveedor: "", cantidad: "", ancho: "", alto: "",
   linea: "", color: "", familia: "", rubro: "",
-  costosi: "", costosicf: "", costo_placa: "",
+  costosi: "", costosicf: "", costocicf: "", costo_placa: "",
+  descuento: "", flete: "", valorlista: "", margen: "",
+  codprov: "", codfam: "", codrub: "",
+  codartprov: "",
 };
 
 const FIELDS_LEFT_TOP = [
-  { field: "codart",    label: "Código Artículo", placeholder: "Ej: ADR00015" },
-  { field: "articulo",  label: "Artículo *",       placeholder: "Ej: Mampara corrediza" },
+  { field: "codartint",  label: "Código Interno",   placeholder: "Ej: ADR00015" },
+  { field: "codartprov", label: "Código Proveedor",  placeholder: "Ej: PROV-001" },
+  { field: "articulo",   label: "Artículo *",        placeholder: "Ej: Mampara corrediza" },
 ];
 
 const FIELDS_LEFT_BOTTOM = [
-  { field: "unidad",    label: "Unidad",                placeholder: "Ej: UN, M2, KG" },
-  { field: "costosi",   label: "Costo sin impuestos",   placeholder: "Ej: 45000" },
-  { field: "costosicf", label: "Costo con flete",       placeholder: "Ej: 52000" },
-  { field: "precio",    label: "Precio ($)",            placeholder: "Ej: 58000" },
-  { field: "cantidad",  label: "Cantidad",              placeholder: "Ej: 1" },
+  { field: "unidad",    label: "Unidad",      placeholder: "Ej: UN, M2, KG" },
+  { field: "cantidad",  label: "Cantidad",    placeholder: "Ej: 1" },
+  { field: "flete",     label: "Flete ($)",   placeholder: "Ej: 500" },
 ];
 
 const FIELDS_RIGHT = [
@@ -122,16 +149,26 @@ function DetalleArticulo({ producto }) {
           : <div className="detalle-sin-foto"><span>🖼️</span><small>Sin imagen</small></div>}
       </div>
       <h3 className="detalle-nombre">{producto.articulo}</h3>
-      {producto.codart    && <p className="detalle-codigo">Código: <strong>{producto.codart}</strong></p>}
+      {producto.codartint && <p className="detalle-codigo">Código Interno: <strong>{producto.codartint}</strong></p>}
+      {producto.codartprov && <p className="detalle-codigo">Código Proveedor: <strong>{producto.codartprov}</strong></p>}
       {producto.rubro     && <p className="detalle-codigo">Rubro: <strong>{producto.rubro}</strong></p>}
       {producto.area      && <p className="detalle-codigo">Área: <strong>{producto.area}</strong></p>}
       {producto.unidad    && <p className="detalle-codigo">Unidad: <strong>{producto.unidad}</strong></p>}
       {producto.proveedor && <p className="detalle-codigo">Proveedor: <strong>{producto.proveedor}</strong></p>}
+      {producto.codprov   && <p className="detalle-codigo">Cód. Proveedor: <strong>{producto.codprov}</strong></p>}
       {producto.color     && <p className="detalle-codigo">Color: <strong>{producto.color}</strong></p>}
       {producto.linea     && <p className="detalle-codigo">Línea: <strong>{producto.linea}</strong></p>}
       {producto.familia   && <p className="detalle-codigo">Familia: <strong>{producto.familia}</strong></p>}
+      {producto.codfam    && <p className="detalle-codigo">Cód. Familia: <strong>{producto.codfam}</strong></p>}
+      {producto.codrub    && <p className="detalle-codigo">Cód. Rubro: <strong>{producto.codrub}</strong></p>}
       <div className="detalle-precios">
+        <div className="detalle-precio-row"><span>Val. lista proveedor</span><strong>{fmt(producto.valorlista)}</strong></div>
+        <div className="detalle-precio-row"><span>Costo s/imp.</span><strong>{fmt(producto.costosi)}</strong></div>
+        <div className="detalle-precio-row"><span>Costo s/imp. c/flete</span><strong>{fmt(producto.costosicf)}</strong></div>
+        <div className="detalle-precio-row"><span>Costo c/imp. c/flete</span><strong>{fmt(producto.costocicf)}</strong></div>
         <div className="detalle-precio-row"><span>Precio</span><strong>{fmt(producto.precio)}</strong></div>
+        {producto.descuento != null && <div className="detalle-precio-row"><span>Descuento</span><strong>{producto.descuento}%</strong></div>}
+        {producto.flete     != null && <div className="detalle-precio-row"><span>Flete</span><strong>{fmt(producto.flete)}</strong></div>}
         <div className="detalle-precio-row"><span>Cantidad</span><strong>{producto.cantidad ?? "-"}</strong></div>
         {(producto.ancho || producto.alto) && (
           <div className="detalle-precio-row">
@@ -154,6 +191,7 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
   const [total, setTotal]     = useState(0);
   const [page, setPage]       = useState(1);
   const [loading, setLoading] = useState(false);
+  const [detalleModal, setDetalleModal] = useState(null);
   const [familias, setFamilias] = useState([]);
   const [rubros, setRubros]     = useState([]);
   const [filtroFamilia, setFiltroFamilia] = useState("");
@@ -269,7 +307,7 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
     if (!selected) return;
     const s = (v) => (v != null && v !== "null") ? String(v) : "";
     setForm({
-      codart:    s(selected.codart),
+      codartint: s(selected.codartint),
       articulo:  s(selected.articulo),
       area:      s(selected.area),
       unidad:    s(selected.unidad),
@@ -285,7 +323,13 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
       rubro:     s(selected.rubro),
       costosi:     s(selected.costosi),
       costosicf:   s(selected.costosicf),
+      costocicf:   s(selected.costocicf),
       costo_placa: s(selected.costo_placa),
+      descuento:   s(selected.descuento),
+      flete:       s(selected.flete),
+      valorlista:  s(selected.valorlista),
+      margen:      s(selected.margen),
+      codartprov:  s(selected.codartprov),
     });
     setError("");
     setFamiliaEsNueva(false); setRubroEsNuevo(false); setNuevoRubro("");
@@ -305,7 +349,7 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
   const handleSubmit = () => {
     if (!form.articulo.trim()) { setError("El artículo es obligatorio."); return; }
     const data = {
-      codart:    form.codart    || null,
+      codartint: form.codartint || null,
       articulo:  form.articulo,
       area:      form.area      || null,
       unidad:    form.unidad    || null,
@@ -321,7 +365,12 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
       rubro:     form.rubro     || null,
       costosi:     toDecimal(form.costosi),
       costosicf:   toDecimal(form.costosicf),
+      costocicf:   toDecimal(form.costocicf),
       costo_placa: toDecimal(form.costo_placa),
+      descuento:   toDecimal(form.descuento),
+      valorlista:  toDecimal(form.valorlista),
+      margen:      toDecimal(form.margen),
+      codartprov:  form.codartprov || null,
     };
     const payload = modal === "nuevo" ? data : { ...data, id: selected.id };
     onSave(payload);
@@ -329,6 +378,8 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
     setForm(EMPTY);
     setTimeout(() => { fetchRows(); cargarRubros(); }, 500);
   };
+
+  const columns = makeColumns((row) => setDetalleModal(row));
 
   return (
     <>
@@ -340,8 +391,15 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
         search={search} onSearch={setSearch}
       />
 
-      {/* Filtros Rubro / Familia */}
-      <div style={{ display: "flex", gap: 10, margin: "8px 0", alignItems: "center" }}>
+      {/* Filtros Rubro / Familia + Buscador */}
+      <div style={{ display: "flex", gap: 10, margin: "8px 0", alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          className="form-input"
+          style={{ maxWidth: 260, marginBottom: 0, paddingLeft: 32, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236699bb' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "10px center" }}
+          placeholder="Buscar artículo, código..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
         <select
           className="form-input"
           style={{ maxWidth: 220, marginBottom: 0, cursor: "pointer" }}
@@ -384,7 +442,7 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
 
       <div className="tabla-detalle-layout">
         <div className="tabla-detalle-tabla">
-          <DataTable columns={COLUMNS} rows={filtered} selectedId={selected?.id} onSelect={onSelect} />
+          <DataTable columns={columns} rows={filtered} selectedId={selected?.id} onSelect={onSelect} />
         </div>
         <div className="tabla-detalle-panel">
           <DetalleArticulo producto={selected} />
@@ -484,8 +542,6 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
                 )}
               </div>
 
-              {FIELDS_LEFT_BOTTOM.map((f) => <FormField key={f.field} {...f} form={form} setForm={setForm} />)}
-
               {/* Proveedor — ligado a tabla proveedor */}
               <div className="form-group" style={{ position: "relative" }}>
                 <label className="form-label">Proveedor</label>
@@ -531,6 +587,126 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
                 )}
               </div>
 
+              {FIELDS_LEFT_BOTTOM.map((f) => <FormField key={f.field} {...f} form={form} setForm={setForm} />)}
+
+              {/* ── Costos con auto-cálculo ── */}
+              {(() => {
+                const r2 = (v) => Math.round(v * 100) / 100;
+
+                const recalcular = (valorlista, descuento, margen) => {
+                  const vl  = parseFloat(valorlista) || 0;
+                  const dto = parseFloat(descuento)  || 0;
+                  const mg  = parseFloat(margen)     || 0;
+                  if (!vl) return { costosi: "", costosicf: "", costocicf: "", precio: "" };
+                  const costosi   = r2(vl * (1 - dto / 100));
+                  const costosicf = r2(costosi * 1.10);
+                  const costocicf = r2(costosicf * 1.21);
+                  const precio    = r2(costocicf * (1 + mg / 100));
+                  return {
+                    costosi:   String(costosi),
+                    costosicf: String(costosicf),
+                    costocicf: String(costocicf),
+                    precio:    String(precio),
+                  };
+                };
+
+                // Descuento del proveedor seleccionado
+                const provSeleccionado = proveedores.find(p =>
+                  (p.fantasia || p.provnombre) === form.proveedor ||
+                  p.provnombre === form.proveedor
+                );
+                const descuentoProv = provSeleccionado?.descuento ?? "";
+
+                const inputStyle = { width: "100%", boxSizing: "border-box" };
+                const readonlyStyle = { ...inputStyle, background: "#f0f6fb", color: "#4a6a80", cursor: "not-allowed" };
+
+                return (
+                  <>
+                    {/* Descuento — muestra el del proveedor, editable si se quiere */}
+                    <div className="form-group">
+                      <label className="form-label">Descuento proveedor (%)</label>
+                      <input
+                        className="form-input"
+                        style={inputStyle}
+                        type="number"
+                        placeholder="Ej: 30"
+                        value={form.descuento !== "" ? form.descuento : descuentoProv}
+                        onChange={e => {
+                          const d = e.target.value;
+                          const calc = recalcular(form.valorlista, d, form.margen);
+                          setForm(p => ({ ...p, descuento: d, ...calc }));
+                        }}
+                      />
+                      {descuentoProv !== "" && form.descuento === "" && (
+                        <small style={{ color: "#6699bb", fontSize: 11 }}>
+                          Tomado del proveedor: {descuentoProv}%
+                        </small>
+                      )}
+                    </div>
+
+                    {/* Valor lista proveedor */}
+                    <div className="form-group">
+                      <label className="form-label">Valor lista proveedor ($)</label>
+                      <input
+                        className="form-input"
+                        style={inputStyle}
+                        type="number"
+                        placeholder="Ej: 48000"
+                        value={form.valorlista}
+                        onChange={e => {
+                          const vl = e.target.value;
+                          const dto = form.descuento !== "" ? form.descuento : descuentoProv;
+                          const calc = recalcular(vl, dto, form.margen);
+                          setForm(p => ({ ...p, valorlista: vl, ...calc }));
+                        }}
+                      />
+                    </div>
+
+                    {/* Costo sin impuestos — calculado */}
+                    <div className="form-group">
+                      <label className="form-label">Costo sin imp. <small style={{color:"#6699bb"}}>(lista × (1 - dto%))</small></label>
+                      <input className="form-input" style={readonlyStyle} readOnly value={form.costosi} placeholder="—" />
+                    </div>
+
+                    {/* Costo sin imp. con flete — calculado */}
+                    <div className="form-group">
+                      <label className="form-label">Costo sin imp. con flete <small style={{color:"#6699bb"}}>(× 1.10)</small></label>
+                      <input className="form-input" style={readonlyStyle} readOnly value={form.costosicf} placeholder="—" />
+                    </div>
+
+                    {/* Costo con imp. con flete — calculado */}
+                    <div className="form-group">
+                      <label className="form-label">Costo con imp. con flete <small style={{color:"#6699bb"}}>(× 1.21)</small></label>
+                      <input className="form-input" style={readonlyStyle} readOnly value={form.costocicf} placeholder="—" />
+                    </div>
+
+                    {/* Margen — editable */}
+                    <div className="form-group">
+                      <label className="form-label">Margen (%)</label>
+                      <input
+                        className="form-input"
+                        style={inputStyle}
+                        type="number"
+                        placeholder="Ej: 40"
+                        value={form.margen}
+                        onChange={e => {
+                          const mg = e.target.value;
+                          const dto = form.descuento !== "" ? form.descuento : descuentoProv;
+                          const calc = recalcular(form.valorlista, dto, mg);
+                          setForm(p => ({ ...p, margen: mg, ...calc }));
+                        }}
+                      />
+                    </div>
+
+                    {/* Precio — calculado */}
+                    <div className="form-group">
+                      <label className="form-label">Precio ($) <small style={{color:"#6699bb"}}>(c/imp. c/flete × (1 + margen%))</small></label>
+                      <input className="form-input" style={readonlyStyle} readOnly value={form.precio} placeholder="—" />
+                    </div>
+                  </>
+                );
+              })()}
+
               {form.area === "2" && (
                 <FormField field="costo_placa" label="Costo placa" placeholder="Ej: 38000" form={form} setForm={setForm} />
               )}
@@ -552,6 +728,12 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
 
       {modal === "eliminar" && (
         <ConfirmDelete item={selected} onConfirm={onDelete} onClose={onCloseModal} />
+      )}
+
+      {detalleModal && (
+        <Modal title="Detalle del artículo" onClose={() => setDetalleModal(null)}>
+          <DetalleArticulo producto={detalleModal} />
+        </Modal>
       )}
     </>
   );

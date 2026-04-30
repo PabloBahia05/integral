@@ -382,49 +382,33 @@ export default function Formulas({ formulas, onSave, onDelete, selected, onSelec
     }
   }, [modal]);
 
-  const elegirRubro = (rubro) => {
-    setRubroElegido(rubro);
-    setFamiliaElegida("");
+  const elegirFamilia = (familia) => {
+    setFamiliaElegida(familia);
+    setRubroElegido("");
     setArtsPorRubro([]);
     setForm(p => ({ ...p, codartint: "" }));
-    if (rubro) {
-      // Cargar familias de ese rubro
-      fetch(`http://localhost:3001/articulos/familias-por-rubro?rubro=${encodeURIComponent(rubro)}`)
+    if (familia) {
+      fetch(`http://localhost:3001/articulos/rubros-por-familia?familia=${encodeURIComponent(familia)}`)
         .then(r => r.json())
-        .then(data => setFamilias(Array.isArray(data) ? data : []))
-        .catch(() => {});
-      // Cargar artículos del rubro directamente
-      fetch(`http://localhost:3001/articulos/por-rubro?rubro=${encodeURIComponent(rubro)}`)
-        .then(r => r.json())
-        .then(data => setArtsPorRubro(Array.isArray(data) ? data : []))
+        .then(data => setRubros(Array.isArray(data) ? data : []))
         .catch(() => {});
     } else {
-      // Sin rubro → recargar todas las familias
-      fetch("http://localhost:3001/articulos/familias-todas")
+      // Sin familia → recargar todos los rubros
+      fetch("http://localhost:3001/articulos/rubros")
         .then(r => r.json())
-        .then(data => setFamilias(Array.isArray(data) ? data : []))
+        .then(data => setRubros(Array.isArray(data) ? data : []))
         .catch(() => {});
     }
   };
 
-  const elegirFamilia = (familia) => {
-    setFamiliaElegida(familia);
+  const elegirRubro = (rubro) => {
+    setRubroElegido(rubro);
     setForm(p => ({ ...p, codartint: "" }));
-    const rubroParam = rubroElegido ? `&rubro=${encodeURIComponent(rubroElegido)}` : "";
-    if (familia) {
-      fetch(`http://localhost:3001/articulos/por-rubro?familia=${encodeURIComponent(familia)}${rubroParam}`)
-        .then(r => r.json())
-        .then(data => setArtsPorRubro(Array.isArray(data) ? data : []))
-        .catch(() => {});
-    } else if (rubroElegido) {
-      // Sin familia pero con rubro → recargar artículos del rubro
-      fetch(`http://localhost:3001/articulos/por-rubro?rubro=${encodeURIComponent(rubroElegido)}`)
-        .then(r => r.json())
-        .then(data => setArtsPorRubro(Array.isArray(data) ? data : []))
-        .catch(() => {});
-    } else {
-      setArtsPorRubro([]);
-    }
+    if (!rubro) { setArtsPorRubro([]); return; }
+    fetch(`http://localhost:3001/articulos/por-rubro?rubro=${encodeURIComponent(rubro)}`)
+      .then(r => r.json())
+      .then(data => setArtsPorRubro(Array.isArray(data) ? data : []))
+      .catch(() => {});
   };
 
   const rubrosUnicos = [...new Set(formulas.map(f => f.rubro).filter(Boolean))].sort();
@@ -454,7 +438,7 @@ export default function Formulas({ formulas, onSave, onDelete, selected, onSelec
     if (!selected) return;
     setForm({
       codform:     selected.codform     ?? "",
-      codartint:   selected.codart      ?? "",
+      codart:      selected.codart      ?? "",
       descripcion: selected.descripcion ?? "",
       formula:     selected.formula     ?? "",
       rubro:       selected.rubro       ?? "",
@@ -466,33 +450,26 @@ export default function Formulas({ formulas, onSave, onDelete, selected, onSelec
     setArtsPorRubro([]);
     onOpenModal("editar");
 
-    // Precargar cascada del artículo vinculado
-    const codVinculado = selected.codart ?? "";
+    // Si tiene codartint, buscar su rubro y familia para precargar los dropdowns
+    const codVinculado = selected.codartint ?? selected.codart ?? "";
     if (codVinculado) {
       try {
         const res = await fetch(`http://localhost:3001/articulos/rubro-de?codart=${encodeURIComponent(codVinculado)}`);
         const data = await res.json();
         if (data.rubro) {
           setRubroElegido(data.rubro);
-          // Cargar familias de ese rubro
-          const resFam = await fetch(`http://localhost:3001/articulos/familias-por-rubro?rubro=${encodeURIComponent(data.rubro)}`);
-          const fams = await resFam.json();
-          if (Array.isArray(fams) && fams.length > 0) setFamilias(fams);
-          // Cargar TODOS los artículos del rubro (sin filtrar familia)
-          const resArts = await fetch(`http://localhost:3001/articulos/por-rubro?rubro=${encodeURIComponent(data.rubro)}`);
-          const arts = await resArts.json();
+          // Cargar artículos de ese rubro
+          const res2 = await fetch(`http://localhost:3001/articulos/por-rubro?rubro=${encodeURIComponent(data.rubro)}`);
+          const arts = await res2.json();
           setArtsPorRubro(Array.isArray(arts) ? arts : []);
         }
         if (data.familia) {
           setFamiliaElegida(data.familia);
+          // Filtrar rubros por esa familia
+          const res3 = await fetch(`http://localhost:3001/articulos/rubros-por-familia?familia=${encodeURIComponent(data.familia)}`);
+          const rubsFam = await res3.json();
+          if (Array.isArray(rubsFam) && rubsFam.length > 0) setRubros(rubsFam);
         }
-      } catch { /* silencioso */ }
-    } else if (selected.rubro) {
-      // Sin artículo vinculado pero con rubro en la fórmula → cargar familias del rubro
-      try {
-        const resFam = await fetch(`http://localhost:3001/articulos/familias-por-rubro?rubro=${encodeURIComponent(selected.rubro)}`);
-        const fams = await resFam.json();
-        if (Array.isArray(fams) && fams.length > 0) setFamilias(fams);
       } catch { /* silencioso */ }
     }
   };
@@ -579,31 +556,29 @@ export default function Formulas({ formulas, onSave, onDelete, selected, onSelec
 
           {/* Rubro y Familia de la fórmula */}
           <div className="form-grid">
-            <div className="form-group" style={{ position: "relative" }}>
+            <div className="form-group">
               <label className="form-label">Rubro</label>
-              <input
+              <select
                 className="form-input"
-                list="rubros-list"
-                placeholder="Escribí o elegí un rubro..."
                 value={form.rubro ?? ""}
                 onChange={(e) => setForm(p => ({ ...p, rubro: e.target.value }))}
-              />
-              <datalist id="rubros-list">
-                {rubros.map(r => <option key={r} value={r} />)}
-              </datalist>
+                style={{ cursor: "pointer" }}
+              >
+                <option value="">— Sin rubro —</option>
+                {rubros.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
             </div>
-            <div className="form-group" style={{ position: "relative" }}>
+            <div className="form-group">
               <label className="form-label">Familia</label>
-              <input
+              <select
                 className="form-input"
-                list="familias-list"
-                placeholder="Escribí o elegí una familia..."
                 value={form.familia ?? ""}
                 onChange={(e) => setForm(p => ({ ...p, familia: e.target.value }))}
-              />
-              <datalist id="familias-list">
-                {familias.map(f => <option key={f} value={f} />)}
-              </datalist>
+                style={{ cursor: "pointer" }}
+              >
+                <option value="">— Sin familia —</option>
+                {familias.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
             </div>
           </div>
 
@@ -621,6 +596,18 @@ export default function Formulas({ formulas, onSave, onDelete, selected, onSelec
           {/* Familia → Rubro → Codart cascada */}
           <div className="form-grid">
             <div className="form-group">
+              <label className="form-label">Familia del artículo</label>
+              <select
+                className="form-input"
+                value={familiaElegida}
+                onChange={(e) => elegirFamilia(e.target.value)}
+                style={{ cursor: "pointer" }}
+              >
+                <option value="">— Todas las familias —</option>
+                {familias.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
               <label className="form-label">Rubro del artículo</label>
               <select
                 className="form-input"
@@ -630,18 +617,6 @@ export default function Formulas({ formulas, onSave, onDelete, selected, onSelec
               >
                 <option value="">— Seleccioná un rubro —</option>
                 {rubros.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Familia del artículo</label>
-              <select
-                className="form-input"
-                value={familiaElegida}
-                onChange={(e) => elegirFamilia(e.target.value)}
-                style={{ cursor: "pointer" }}
-              >
-                <option value="">— Todas las familias (genérico al rubro) —</option>
-                {familias.map(f => <option key={f} value={f}>{f}</option>)}
               </select>
             </div>
           </div>

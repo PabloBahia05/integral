@@ -176,7 +176,7 @@ app.delete("/clientes/:id", (req, res) => {
 // ───────────────────────────────────────────
 // ARTICULOS  (tabla real: articulos)
 // Expuesto como /productos para compatibilidad con el frontend
-// Columnas: id, codart, articulo, area, artfoto, precio,
+// Columnas: id, codartint, articulo, area, artfoto, precio,
 //           cantidad, ancho, alto, linea, color
 // ───────────────────────────────────────────
 
@@ -241,11 +241,11 @@ app.get("/articulos/por-familia", (req, res) => {
   const { familia } = req.query;
   if (!familia) return res.status(400).json({ error: "familia requerida" });
 
-  // Primero intentar con campo 'linea', si no existe usar SUBSTRING(codart,1,2)
+  // Primero intentar con campo 'linea', si no existe usar SUBSTRING(codartint,1,2)
   const sql = `
     SELECT 
       articulo,
-      COALESCE(linea, CAST(SUBSTRING(codart, 1, 2) AS UNSIGNED)) AS linea,
+      COALESCE(linea, CAST(SUBSTRING(codartint, 1, 2) AS UNSIGNED)) AS linea,
       precio
     FROM articulos
     WHERE (familia = ? OR familia LIKE ?)
@@ -257,7 +257,7 @@ app.get("/articulos/por-familia", (req, res) => {
       // Fallback sin campo linea
       const sql2 = `
         SELECT articulo,
-               CAST(SUBSTRING(codart, 1, 2) AS UNSIGNED) AS linea,
+               CAST(SUBSTRING(codartint, 1, 2) AS UNSIGNED) AS linea,
                precio
         FROM articulos
         WHERE (familia = ? OR familia LIKE ?)
@@ -356,12 +356,12 @@ app.get("/articulos/rubros", (req, res) => {
   );
 });
 
-// Rubro de un codart específico (para precargar al editar fórmula)
+// Rubro de un codartint específico (para precargar al editar fórmula)
 app.get("/articulos/rubro-de", (req, res) => {
   const { codart } = req.query;
   if (!codart) return res.status(400).json({ error: "codart requerido" });
   db.query(
-    "SELECT rubro FROM articulos WHERE codart = ? LIMIT 1",
+    "SELECT rubro FROM articulos WHERE codartint = ? LIMIT 1",
     [codart],
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -370,13 +370,13 @@ app.get("/articulos/rubro-de", (req, res) => {
   );
 });
 
-// Artículos filtrados por rubro y/o familia (codart + articulo + precio)
+// Artículos filtrados por rubro y/o familia (codartint + articulo + precio)
 app.get("/articulos/por-rubro", (req, res) => {
   const { rubro, familia } = req.query;
   if (!rubro && !familia)
     return res.status(400).json({ error: "rubro o familia requerido" });
 
-  let sql = "SELECT codart, articulo, precio FROM articulos WHERE 1=1";
+  let sql = "SELECT codartint, articulo, precio FROM articulos WHERE 1=1";
   const params = [];
 
   if (rubro) {
@@ -394,6 +394,42 @@ app.get("/articulos/por-rubro", (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(result);
   });
+});
+
+// Guías para vanitory: columna articulo contiene "GUIAS TELESCOPICAS"
+app.get("/productos/guias-vanitory", (req, res) => {
+  db.query(
+    `SELECT * FROM articulos
+     WHERE UPPER(articulo) LIKE '%GUIA TELESCOPICA%'
+     ORDER BY articulo`,
+    (err, result) => {
+      if (err) {
+        console.error("[guias-vanitory] Error SQL:", err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log("[guias-vanitory] Resultados:", result.length);
+      res.json(result);
+    },
+  );
+});
+
+// Placas para vanitory: columna articulo contiene "PLACA", proveedor != DANIEL ROQUE SRL
+app.get("/productos/placas-vanitory", (req, res) => {
+  db.query(
+    `SELECT * FROM articulos
+     WHERE UPPER(TRIM(familia)) LIKE '%INSUMO AMOBLAMIENTOS%'
+       AND UPPER(articulo) LIKE '%PLACA%'
+       AND UPPER(TRIM(proveedor)) != 'DANIEL ROQUE SRL'
+     ORDER BY articulo`,
+    (err, result) => {
+      if (err) {
+        console.error("[placas-vanitory] Error SQL:", err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log("[placas-vanitory] Resultados:", result.length);
+      res.json(result);
+    },
+  );
 });
 
 // Artículos con familia/rubro MAMPARA y proveedor DANIEL ROQUE SRL — para presupuesto mamparas
@@ -424,12 +460,12 @@ app.get("/productos/mamparas/familias", (req, res) => {
   );
 });
 
-// Buscar un artículo por codart — usado por el frontend para resolver precio_XXXX en fórmulas
+// Buscar un artículo por codartint — usado por el frontend para resolver precio_XXXX en fórmulas
 // ⚠️ DEBE ir DESPUÉS de todas las rutas /articulos/xxx estáticas para que Express no las confunda
 app.get("/articulos/:cod", (req, res) => {
   const { cod } = req.params;
   db.query(
-    "SELECT * FROM articulos WHERE codart = ? LIMIT 1",
+    "SELECT * FROM articulos WHERE codartint = ? LIMIT 1",
     [cod],
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -546,7 +582,7 @@ app.post("/vanitory-tipos", (req, res) => {
 
     // También insertar en articulos
     const articulo = {
-      codart: item.codtipvan ?? "",
+      codartint: item.codtipvan ?? "",
       articulo: item.nombre ?? "",
       rubro: item.rubro ?? "",
       artfoto: item.foto ?? "",
@@ -574,7 +610,7 @@ app.put("/vanitory-tipos/:id", (req, res) => {
       artfoto: item.foto ?? "",
     };
     db.query(
-      "UPDATE articulos SET ? WHERE codart = ?",
+      "UPDATE articulos SET ? WHERE codartint = ?",
       [artUpdate, item.codtipvan],
       (err2) => {
         if (err2) console.error("Error actualizando articulos:", err2.message);
@@ -759,17 +795,17 @@ app.post("/formulas/verificar", (req, res) => {
   if (codartRefs.length > 0) {
     const placeholders = codartRefs.map(() => "?").join(",");
     db.query(
-      `SELECT codart, precio, ancho, alto, cantidad FROM articulos WHERE codart IN (${placeholders})`,
+      `SELECT codartint, precio, ancho, alto, cantidad FROM articulos WHERE codartint IN (${placeholders})`,
       codartRefs,
       (err, rows) => {
         if (err) return ejecutar({});
         const extra = {};
         rows.forEach((r) => {
-          extra[`precio_${r.codart}`] = parseFloat(r.precio) || 0;
-          extra[`ancho_${r.codart}`] = parseFloat(r.ancho) || 0;
-          extra[`alto_${r.codart}`] = parseFloat(r.alto) || 0;
-          extra[`cantidad_${r.codart}`] = parseFloat(r.cantidad) || 0;
-          extra[`margen_${r.codart}`] = 0;
+          extra[`precio_${r.codartint}`] = parseFloat(r.precio) || 0;
+          extra[`ancho_${r.codartint}`] = parseFloat(r.ancho) || 0;
+          extra[`alto_${r.codartint}`] = parseFloat(r.alto) || 0;
+          extra[`cantidad_${r.codartint}`] = parseFloat(r.cantidad) || 0;
+          extra[`margen_${r.codartint}`] = 0;
         });
         // Also fetch margen
         db.query(
@@ -824,7 +860,7 @@ app.post("/formulas/calcular", (req, res) => {
 
     // 2. Buscar precio del artículo en tabla articulos
     db.query(
-      "SELECT precio, articulo FROM articulos WHERE codart = ? LIMIT 1",
+      "SELECT precio, articulo FROM articulos WHERE codartint = ? LIMIT 1",
       [codart_modelo],
       (err2, aResult) => {
         if (err2) return res.status(500).json({ error: err2.message });
@@ -856,13 +892,13 @@ app.post("/formulas/calcular", (req, res) => {
           const placeholders = codarts.map(() => "?").join(",");
           // Fetch articulos data
           db.query(
-            `SELECT codart, precio, ancho, alto, cantidad FROM articulos WHERE codart IN (${placeholders})`,
+            `SELECT codartint, precio, ancho, alto, cantidad FROM articulos WHERE codartint IN (${placeholders})`,
             codarts,
             (err3, rows) => {
               if (err3) return callback({});
               const map = {};
               rows.forEach((r) => {
-                map[r.codart] = {
+                map[r.codartint] = {
                   precio: parseFloat(r.precio) || 0,
                   ancho: parseFloat(r.ancho) || 0,
                   alto: parseFloat(r.alto) || 0,
@@ -1848,8 +1884,22 @@ app.delete("/lista/:id", (req, res) => {
 // ───────────────────────────────────────────
 // PROVEEDORES  (tabla: proveedor)
 // Columnas: id, provnombre, fantasia, domicilio, localidad,
-//           telefono, telefono1, wapp, ubicacion, cuit, tipo_fact
+//           telefono, telefono1, wapp, domrem, ubicacion,
+//           cuit, rubro, tipo_fact, cod_postal, descuento, flete
 // ───────────────────────────────────────────
+
+// Rubros únicos de proveedores (para el desplegable en Proveedores)
+app.get("/proveedores/rubros", (req, res) => {
+  db.query(
+    `SELECT DISTINCT rubro FROM proveedor
+     WHERE rubro IS NOT NULL AND TRIM(rubro) != ''
+     ORDER BY rubro`,
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result.map((r) => r.rubro).filter(Boolean));
+    }
+  );
+});
 
 app.get("/proveedores/buscar", (req, res) => {
   const { q } = req.query;
@@ -1860,9 +1910,10 @@ app.get("/proveedores/buscar", (req, res) => {
      WHERE provnombre LIKE ?
         OR fantasia   LIKE ?
         OR localidad  LIKE ?
+        OR rubro      LIKE ?
      ORDER BY provnombre
      LIMIT 10`,
-    [like, like, like],
+    [like, like, like, like],
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(result);
