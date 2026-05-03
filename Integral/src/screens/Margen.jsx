@@ -110,10 +110,10 @@ export default function Margen({ margen, onSave, onDelete, selected, onSelect, m
   const handleSelect = (art) => {
     setForm(p => ({
       ...p,
-      CODART:   art.codart   ?? "",
-      ARTICULO: art.articulo ?? "",
-      AREA:     art.area     ?? "",
-      FAMILIA:  art.familia  ?? "",
+      CODART:   art.codartint ?? art.CODARTINT ?? art.codart ?? art.CODART ?? "",
+      ARTICULO: art.articulo  ?? art.ARTICULO  ?? "",
+      AREA:     art.area      ?? art.AREA      ?? "",
+      FAMILIA:  art.familia   ?? art.FAMILIA   ?? "",
     }));
   };
 

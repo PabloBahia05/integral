@@ -4,7 +4,7 @@ const API = "http://localhost:3001";
 
 export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
   const modelo = modeloRaw
-    ? { ...modeloRaw, codart: modeloRaw.codart ?? modeloRaw.codtipvan ?? null }
+    ? { ...modeloRaw, codart: modeloRaw.codartint ?? modeloRaw.CODARTINT ?? modeloRaw.codart ?? modeloRaw.codtipvan ?? null }
     : null;
   const [presupuestoId, setPresupuestoId] = useState("");
 
@@ -17,6 +17,15 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
     colocacion:        0,
     material:          "",
     materialPrecio:    0,
+    materialBlanco:    "",
+    materialBlancoPrecio: 0,
+    bisagra:          "",
+    bisagraPrecio:    0,
+    bisagraCantidad:  2,
+    lateralDer:       "COLOR",
+    lateralIzq:       "COLOR",
+    base:             "COLOR",
+    techo:            "COLOR",
     corredera:         "",
     correderaPrecio:   0,
     correderaCantidad: 1,
@@ -48,6 +57,10 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
   const [materialSearch, setMaterialSearch] = useState("");
   const [materialDropdown, setMaterialDropdown] = useState(false);
   const materialRef = useRef(null);
+  const [materialBlancoSearch, setMaterialBlancoSearch] = useState("");
+  const [materialBlancoDropdown, setMaterialBlancoDropdown] = useState(false);
+  const materialBlancoRef = useRef(null);
+  const [bisagras, setBisagras] = useState([]);
   // Próximo número de presupuesto
   useEffect(() => {
     fetch(`${API}/presupuestos-vanitory/proximo-numero`)
@@ -149,7 +162,10 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
       fetch(`${API}/asociaciones-form?codart=${encodeURIComponent(modelo.codart)}`).then(r => r.json()).catch(() => null),
       fetch(`${API}/formulas`).then(r => r.json()).catch(() => []),
     ]).then(async ([asocData, allFormulas]) => {
-      const row = Array.isArray(asocData) ? asocData[0] : asocData;
+      const todos = Array.isArray(asocData) ? asocData : (asocData ? [asocData] : []);
+      const row = todos.find(a =>
+        (a.codart ?? a.CODART ?? "").toUpperCase() === (modelo.codart ?? "").toUpperCase()
+      ) ?? null;
       if (!row) { setSlotsFormulas([]); setTotalSlots(0); return; }
 
       const formulasMap = {};
@@ -218,8 +234,16 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
         profundidad:     Number(form.profundo),
         cantidad:        Number(form.cantidad),
         colocacion:      Number(form.colocacion),
-        precio_material: Number(form.materialPrecio) || 0,
-        precio_base:     modelo?.PRECIO_BASE ? parseFloat(modelo.PRECIO_BASE) : 0,
+        precio_material:    Number(form.materialPrecio) || 0,
+        precio_lateral_der: form.lateralDer === "COLOR" ? (Number(form.materialPrecio) || 0) : form.lateralDer === "BLANCO" ? (Number(form.materialBlancoPrecio) || 0) : 0,
+        precio_lateral_izq: form.lateralIzq === "COLOR" ? (Number(form.materialPrecio) || 0) : form.lateralIzq === "BLANCO" ? (Number(form.materialBlancoPrecio) || 0) : 0,
+        precio_base:        form.base === "COLOR" ? (Number(form.materialPrecio) || 0) : form.base === "BLANCO" ? (Number(form.materialBlancoPrecio) || 0) : 0,
+        precio_techo:       form.techo === "COLOR" ? (Number(form.materialPrecio) || 0) : form.techo === "BLANCO" ? (Number(form.materialBlancoPrecio) || 0) : 0,
+        precio_bisagra:   Number(form.bisagraPrecio) || 0,
+        cant_bisagras:    Number(form.bisagraCantidad) || 0,
+        lateral_der:      form.lateralDer,
+        lateral_izq:      form.lateralIzq,
+        base_color:       form.base,
         ...preciosBD.current,   // ← precios de BD inyectados
       };
 
@@ -243,8 +267,11 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
       profundidad:     Number(form.profundo),
       cantidad:        Number(form.cantidad),
       colocacion:      Number(form.colocacion),
-      precio_material: Number(form.materialPrecio) || 0,
-      precio_base:     modelo?.PRECIO_BASE ? parseFloat(modelo.PRECIO_BASE) : 0,
+      precio_material:    Number(form.materialPrecio) || 0,
+      precio_lateral_der: form.lateralDer === "COLOR" ? (Number(form.materialPrecio) || 0) : form.lateralDer === "BLANCO" ? (Number(form.materialBlancoPrecio) || 0) : 0,
+      precio_lateral_izq: form.lateralIzq === "COLOR" ? (Number(form.materialPrecio) || 0) : form.lateralIzq === "BLANCO" ? (Number(form.materialBlancoPrecio) || 0) : 0,
+      precio_base:        form.base === "COLOR" ? (Number(form.materialPrecio) || 0) : form.base === "BLANCO" ? (Number(form.materialBlancoPrecio) || 0) : 0,
+      precio_techo:       form.techo === "COLOR" ? (Number(form.materialPrecio) || 0) : form.techo === "BLANCO" ? (Number(form.materialBlancoPrecio) || 0) : 0,
       ...preciosBD.current,   // ← precios de BD ya cargados, sin refetchear
     };
 
@@ -264,7 +291,7 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
     setSlotsFormulas(actualizados);
     setTotalSlots(Math.round(suma * 100) / 100);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.ancho, form.alto, form.profundo, form.cantidad, form.colocacion, form.materialPrecio]);
+  }, [form.ancho, form.alto, form.profundo, form.cantidad, form.colocacion, form.materialPrecio, form.materialBlancoPrecio, form.lateralDer, form.lateralIzq, form.base, form.techo, cargandoInsumos]);
 
   useEffect(() => {
     setCargandoInsumos(true);
@@ -272,9 +299,11 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
     // Helper: la tabla articulos ya tiene columnas articulo, codartint y precio directamente
     const normalizar = p => ({
       ...p,
-      articulo: p.articulo ?? p.ARTICULO ?? "",
-      codart:   p.codartint ?? p.CODARTINT ?? p.codart ?? "",
-      precio:   parseFloat(p.precio ?? p.PRECIO ?? 0) || 0,
+      articulo:   p.articulo   ?? p.ARTICULO   ?? "",
+      codart:     p.codartint  ?? p.CODARTINT  ?? p.codart ?? "",
+      codartint:  p.codartint  ?? p.CODARTINT  ?? p.codart ?? "",
+      precio:     parseFloat(p.precio    ?? p.PRECIO    ?? 0) || 0,
+      precio_un:  parseFloat(p.precio_un ?? p.PRECIO_UN ?? p.precio ?? 0) || 0,
     });
 
     Promise.all([
@@ -284,13 +313,34 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
         .then(data => (Array.isArray(data) ? data : []).map(normalizar))
         .catch(() => []),
       // Guías: articulo LIKE %GUIAS TELESCOPICAS%
+      fetch(`${API}/productos/bisagras-vanitory`)
+        .then(r => r.json()).then(d => Array.isArray(d) ? d : []).catch(() => []),
       fetch(`${API}/productos/guias-vanitory`)
         .then(r => r.json())
         .then(data => (Array.isArray(data) ? data : []).map(normalizar))
         .catch(() => []),
-    ]).then(([mats, her]) => {
+    ]).then(([mats, bis, her]) => {
       setInsumosMuebles(mats);
+      setBisagras(bis);
       setHerrajes(her);
+      // Precargar material blanco con PMDFBL18
+      const blanco = mats.find(p => (p.codart ?? p.codartint ?? "").toUpperCase() === "PMDFBL18");
+      if (blanco) {
+        setForm(prev => ({
+          ...prev,
+          materialBlanco:       blanco.articulo,
+          materialBlancoPrecio: parseFloat(blanco.precio_un ?? blanco.precio) || 0,
+        }));
+      }
+      // Precargar material color con PMDFCL18
+      const color = mats.find(p => (p.codart ?? p.codartint ?? "").toUpperCase() === "PLMDF18CL");
+      if (color) {
+        setForm(prev => ({
+          ...prev,
+          material:       color.articulo,
+          materialPrecio: parseFloat(color.precio_un ?? color.precio) || 0,
+        }));
+      }
       console.log("[Vanitory] Placas:", mats.length, "| Guías:", her.length);
       if (mats.length > 0) console.log("[Vanitory] Ejemplo placa:", mats[0]);
     }).finally(() => setCargandoInsumos(false));
@@ -347,8 +397,9 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
   // Totales
   const totalMaterial   = Number(form.materialPrecio) || 0;
   const totalCorredera  = (Number(form.correderaPrecio) || 0) * (Number(form.correderaCantidad) || 1);
-  // El margen se aplica a TODOS los ítems (fórmulas + material + correderas) ANTES de la colocación
-  const baseMargen      = result.subtotal + totalSlots + totalMaterial + totalCorredera;
+  const totalBisagra    = (Number(form.bisagraPrecio) || 0) * (Number(form.bisagraCantidad) || 0);
+  // El margen se aplica a TODOS los ítems (fórmulas + material + correderas + bisagras) ANTES de la colocación
+  const baseMargen      = result.subtotal + totalSlots + totalMaterial + totalCorredera + totalBisagra;
   const totalMargen     = baseMargen * (Number(form.margen) || 0) / 100;
   const total           = baseMargen + totalMargen + Number(form.colocacion);
 
@@ -574,6 +625,242 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
                 </span>
               </div>
 
+              {/* Material */}
+              <div className="field" style={{position:"relative"}} ref={materialRef}>
+                <span className="label-text">
+                  🪵 MATERIAL
+                  {form.material && <span style={{marginLeft:8,fontSize:"10px",color:"#2d7fc1",fontWeight:600}}>{formatPeso(totalMaterial)}</span>}
+                </span>
+                {cargandoInsumos ? (
+                  <div style={{fontSize:"12px",color:"#4a8ab5",fontStyle:"italic",padding:"10px 0"}}>⏳ Cargando...</div>
+                ) : (
+                  <>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <input
+                        className="input"
+                        style={{flex:1}}
+                        placeholder="Escribí para buscar material..."
+                        value={materialSearch !== "" || materialDropdown ? materialSearch : form.material}
+                        onFocus={() => { setMaterialSearch(""); setMaterialDropdown(true); }}
+                        onChange={e => { setMaterialSearch(e.target.value); setMaterialDropdown(true); }}
+                        onBlur={() => setTimeout(() => setMaterialDropdown(false), 150)}
+                      />
+                      {form.material && (
+                        <button
+                          type="button"
+                          onClick={() => { setForm(prev => ({ ...prev, material: "", materialPrecio: 0 })); setMaterialSearch(""); }}
+                          style={{padding:"0 10px",height:38,borderRadius:4,border:"1px solid #d0dde8",background:"#f5f8fa",color:"#c0392b",cursor:"pointer",fontSize:14,fontWeight:700}}
+                          title="Quitar material"
+                        >✕</button>
+                      )}
+                    </div>
+                    {materialDropdown && (
+                      <div style={{
+                        position:"absolute", zIndex:999, left:0, right:0,
+                        background:"#fff", border:"1px solid #b8d6ef", borderRadius:6,
+                        boxShadow:"0 4px 18px rgba(0,40,80,0.13)", maxHeight:220, overflowY:"auto",
+                        marginTop:2
+                      }}>
+                        {/* Opción vaciar */}
+                        <div
+                          style={{padding:"9px 14px",fontSize:12,color:"#6a8aa0",cursor:"pointer",borderBottom:"1px solid #e8f0f7"}}
+                          onMouseDown={() => { setForm(prev => ({ ...prev, material: "", materialPrecio: 0 })); setMaterialSearch(""); setMaterialDropdown(false); }}
+                        >— Sin material —</div>
+                        {insumosMuebles
+                          .filter(p => !materialSearch || (p.articulo ?? "").toLowerCase().includes(materialSearch.toLowerCase()) || (p.codart ?? "").toLowerCase().includes(materialSearch.toLowerCase()))
+                          .slice(0, 60)
+                          .map((p, i) => (
+                            <div
+                              key={p.id ?? p.codart ?? i}
+                              style={{
+                                padding:"9px 14px", fontSize:13, cursor:"pointer",
+                                background: form.material === p.articulo ? "#e8f4fb" : "transparent",
+                                borderBottom:"1px solid #f0f5fa",
+                                display:"flex", justifyContent:"space-between", alignItems:"center"
+                              }}
+                              onMouseDown={() => {
+                                const pu = parseFloat(p.precio_un ?? p.precio ?? 0);
+                                setForm(prev => ({ ...prev, material: p.articulo, materialPrecio: pu }));
+                                setMaterialSearch(""); setMaterialDropdown(false);
+                              }}
+                            >
+                              <span>{p.codart ? <span style={{color:"#4a8ab5",fontFamily:"monospace",marginRight:6}}>[{p.codart}]</span> : null}{p.articulo}</span>
+                              {p.precio != null && <span style={{color:"#2d7fc1",fontWeight:700,fontSize:12,marginLeft:8}}>${parseFloat(p.precio).toLocaleString("es-AR")}</span>}
+                            </div>
+                          ))
+                        }
+                        {insumosMuebles.filter(p => !materialSearch || (p.articulo ?? "").toLowerCase().includes(materialSearch.toLowerCase()) || (p.codart ?? "").toLowerCase().includes(materialSearch.toLowerCase())).length === 0 && (
+                          <div style={{padding:"12px 14px",fontSize:12,color:"#b0c0d0",fontStyle:"italic"}}>Sin resultados</div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Material BLANCO */}
+              <div className="field" style={{position:"relative"}} ref={materialBlancoRef}>
+                <span className="label-text">
+                  🪵 MATERIAL BLANCO
+                  {form.materialBlanco && <span style={{marginLeft:8,fontSize:"10px",color:"#2d7fc1",fontWeight:600}}>{formatPeso(form.materialBlancoPrecio)}</span>}
+                </span>
+                {cargandoInsumos ? (
+                  <div style={{fontSize:"12px",color:"#4a8ab5",fontStyle:"italic",padding:"10px 0"}}>⏳ Cargando...</div>
+                ) : (
+                  <>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <input
+                        className="input"
+                        style={{flex:1}}
+                        placeholder="Escribí para buscar material blanco..."
+                        value={materialBlancoSearch !== "" || materialBlancoDropdown ? materialBlancoSearch : form.materialBlanco}
+                        onFocus={() => { setMaterialBlancoSearch(""); setMaterialBlancoDropdown(true); }}
+                        onChange={e => { setMaterialBlancoSearch(e.target.value); setMaterialBlancoDropdown(true); }}
+                        onBlur={() => setTimeout(() => setMaterialBlancoDropdown(false), 150)}
+                      />
+                      {form.materialBlanco && (
+                        <button type="button"
+                          onClick={() => { setForm(prev => ({ ...prev, materialBlanco: "", materialBlancoPrecio: 0 })); setMaterialBlancoSearch(""); }}
+                          style={{padding:"0 10px",height:38,borderRadius:4,border:"1px solid #d0dde8",background:"#f5f8fa",color:"#c0392b",cursor:"pointer",fontSize:14,fontWeight:700}}
+                          title="Quitar material blanco">✕</button>
+                      )}
+                    </div>
+                    {materialBlancoDropdown && (
+                      <div style={{
+                        position:"absolute", zIndex:999, left:0, right:0,
+                        background:"#fff", border:"1px solid #b8d6ef", borderRadius:6,
+                        boxShadow:"0 4px 18px rgba(0,40,80,0.13)", maxHeight:220, overflowY:"auto", marginTop:2
+                      }}>
+                        <div style={{padding:"9px 14px",fontSize:12,color:"#6a8aa0",cursor:"pointer",borderBottom:"1px solid #e8f0f7"}}
+                          onMouseDown={() => { setForm(prev => ({ ...prev, materialBlanco: "", materialBlancoPrecio: 0 })); setMaterialBlancoSearch(""); setMaterialBlancoDropdown(false); }}>
+                          — Sin material blanco —
+                        </div>
+                        {insumosMuebles
+                          .filter(p => !materialBlancoSearch || (p.articulo ?? "").toLowerCase().includes(materialBlancoSearch.toLowerCase()) || (p.codart ?? "").toLowerCase().includes(materialBlancoSearch.toLowerCase()))
+                          .slice(0, 60)
+                          .map((p, i) => (
+                            <div key={p.id ?? p.codart ?? i}
+                              style={{
+                                padding:"9px 14px", fontSize:13, cursor:"pointer",
+                                background: form.materialBlanco === p.articulo ? "#e8f4fb" : "transparent",
+                                borderBottom:"1px solid #f0f5fa",
+                                display:"flex", justifyContent:"space-between", alignItems:"center"
+                              }}
+                              onMouseDown={() => {
+                                const pu = parseFloat(p.precio_un ?? p.precio ?? 0);
+                                setForm(prev => ({ ...prev, materialBlanco: p.articulo, materialBlancoPrecio: pu }));
+                                setMaterialBlancoSearch(""); setMaterialBlancoDropdown(false);
+                              }}>
+                              <span>{p.codart ? <span style={{color:"#4a8ab5",fontFamily:"monospace",marginRight:6}}>[{p.codart}]</span> : null}{p.articulo}</span>
+                              {p.precio != null && <span style={{color:"#2d7fc1",fontWeight:700,fontSize:12,marginLeft:8}}>${parseFloat(p.precio).toLocaleString("es-AR")}</span>}
+                            </div>
+                          ))
+                        }
+                        {insumosMuebles.filter(p => !materialBlancoSearch || (p.articulo ?? "").toLowerCase().includes(materialBlancoSearch.toLowerCase())).length === 0 && (
+                          <div style={{padding:"12px 14px",fontSize:12,color:"#b0c0d0",fontStyle:"italic"}}>Sin resultados</div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Cliente */}
+              <div className="field">
+                <span className="label-text">NOMBRE / CLIENTE *</span>
+                <input className="input" value={form.cliente}
+                  onChange={e => setForm({ ...form, cliente: e.target.value })} />
+              </div>
+
+              {/* Correderas */}
+              <div className="field">
+                <span className="label-text">
+                  🔩 CORREDERAS
+                  {form.corredera && <span style={{marginLeft:8,fontSize:"10px",color:"#2d7fc1",fontWeight:600}}>{formatPeso(totalCorredera)}</span>}
+                </span>
+                {cargandoInsumos ? (
+                  <div style={{fontSize:"12px",color:"#4a8ab5",fontStyle:"italic",padding:"10px 0"}}>⏳ Cargando...</div>
+                ) : (
+                  <select className="input" style={{cursor:"pointer"}} value={form.corredera}
+                    onChange={e => {
+                      const sel = herrajes.find(p => p.articulo === e.target.value);
+                      setForm(prev => ({ ...prev, corredera: e.target.value, correderaPrecio: sel ? parseFloat(sel.precio) || 0 : 0 }));
+                    }}>
+                    <option value="">— Sin correderas —</option>
+                    {herrajes.map((p, i) => (
+                      <option key={p.id ?? p.codart ?? i} value={p.articulo}>
+                        {p.articulo}{p.precio != null ? ` — $${parseFloat(p.precio).toLocaleString("es-AR")}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {form.corredera && (
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginTop:8}}>
+                    <span className="label-text" style={{margin:0}}>CANTIDAD</span>
+                    <input className="input" type="number" min="1" style={{width:80,textAlign:"center"}}
+                      value={form.correderaCantidad}
+                      onChange={e => setForm(prev => ({ ...prev, correderaCantidad: Math.max(1, Number(e.target.value)) }))} />
+                    <span style={{fontSize:"12px",color:"#6a8aa0"}}>× {formatPeso(form.correderaPrecio)} c/u</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Bisagras */}
+              <div className="field">
+                <span className="label-text">
+                  🔧 BISAGRAS
+                  {totalBisagra > 0 && <span style={{marginLeft:8,fontSize:"10px",color:"#2d7fc1",fontWeight:600}}>{formatPeso(totalBisagra)}</span>}
+                </span>
+                {cargandoInsumos ? (
+                  <div style={{fontSize:"12px",color:"#4a8ab5",fontStyle:"italic",padding:"10px 0"}}>⏳ Cargando...</div>
+                ) : (
+                  <select className="input" style={{cursor:"pointer"}} value={form.bisagra}
+                    onChange={e => {
+                      const sel = bisagras.find(p => p.articulo === e.target.value);
+                      setForm(prev => ({ ...prev, bisagra: e.target.value, bisagraPrecio: sel ? parseFloat(sel.precio) || 0 : 0 }));
+                    }}>
+                    <option value="">— Sin bisagras —</option>
+                    {bisagras.map((p, i) => (
+                      <option key={p.id ?? p.codart ?? i} value={p.articulo}>
+                        {p.articulo}{p.precio != null ? ` — ${parseFloat(p.precio).toLocaleString("es-AR")}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {form.bisagra && (
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginTop:8}}>
+                    <span className="label-text" style={{margin:0}}>CANTIDAD</span>
+                    <input className="input" type="number" min="1" style={{width:80,textAlign:"center"}}
+                      value={form.bisagraCantidad}
+                      onChange={e => setForm(prev => ({ ...prev, bisagraCantidad: Math.max(1, Number(e.target.value)) }))} />
+                    <span style={{fontSize:"12px",color:"#6a8aa0"}}>× {formatPeso(form.bisagraPrecio)} c/u</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Laterales y Base */}
+              <div className="field">
+                <span className="label-text">🎨 LATERALES Y BASE</span>
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:6}}>
+                  {[
+                    { label:"LATERAL DERECHO", key:"lateralDer" },
+                    { label:"LATERAL IZQUIERDO", key:"lateralIzq" },
+                    { label:"BASE", key:"base" },
+                    { label:"TECHO", key:"techo" },
+                  ].map(({ label, key }) => (
+                    <div key={key} style={{display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:"11px",color:"#6a8aa0",width:140,flexShrink:0}}>{label}</span>
+                      <select className="input" style={{cursor:"pointer",flex:1}} value={form[key]}
+                        onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}>
+                        <option value="COLOR">COLOR</option>
+                        <option value="BLANCO">BLANCO</option>
+                        <option value="SIN">SIN</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* ── Fórmulas asociadas al artículo ── */}
               {modelo?.codart && (
                 <div style={{
@@ -678,118 +965,8 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
                 </div>
               )}
 
-              {/* Cliente */}
-              <div className="field">
-                <span className="label-text">NOMBRE / CLIENTE *</span>
-                <input className="input" value={form.cliente}
-                  onChange={e => setForm({ ...form, cliente: e.target.value })} />
-              </div>
 
-              {/* Material */}
-              <div className="field" style={{position:"relative"}} ref={materialRef}>
-                <span className="label-text">
-                  🪵 MATERIAL
-                  {form.material && <span style={{marginLeft:8,fontSize:"10px",color:"#2d7fc1",fontWeight:600}}>{formatPeso(totalMaterial)}</span>}
-                </span>
-                {cargandoInsumos ? (
-                  <div style={{fontSize:"12px",color:"#4a8ab5",fontStyle:"italic",padding:"10px 0"}}>⏳ Cargando...</div>
-                ) : (
-                  <>
-                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                      <input
-                        className="input"
-                        style={{flex:1}}
-                        placeholder="Escribí para buscar material..."
-                        value={materialSearch !== "" || materialDropdown ? materialSearch : form.material}
-                        onFocus={() => { setMaterialSearch(""); setMaterialDropdown(true); }}
-                        onChange={e => { setMaterialSearch(e.target.value); setMaterialDropdown(true); }}
-                        onBlur={() => setTimeout(() => setMaterialDropdown(false), 150)}
-                      />
-                      {form.material && (
-                        <button
-                          type="button"
-                          onClick={() => { setForm(prev => ({ ...prev, material: "", materialPrecio: 0 })); setMaterialSearch(""); }}
-                          style={{padding:"0 10px",height:38,borderRadius:4,border:"1px solid #d0dde8",background:"#f5f8fa",color:"#c0392b",cursor:"pointer",fontSize:14,fontWeight:700}}
-                          title="Quitar material"
-                        >✕</button>
-                      )}
-                    </div>
-                    {materialDropdown && (
-                      <div style={{
-                        position:"absolute", zIndex:999, left:0, right:0,
-                        background:"#fff", border:"1px solid #b8d6ef", borderRadius:6,
-                        boxShadow:"0 4px 18px rgba(0,40,80,0.13)", maxHeight:220, overflowY:"auto",
-                        marginTop:2
-                      }}>
-                        {/* Opción vaciar */}
-                        <div
-                          style={{padding:"9px 14px",fontSize:12,color:"#6a8aa0",cursor:"pointer",borderBottom:"1px solid #e8f0f7"}}
-                          onMouseDown={() => { setForm(prev => ({ ...prev, material: "", materialPrecio: 0 })); setMaterialSearch(""); setMaterialDropdown(false); }}
-                        >— Sin material —</div>
-                        {insumosMuebles
-                          .filter(p => !materialSearch || (p.articulo ?? "").toLowerCase().includes(materialSearch.toLowerCase()) || (p.codart ?? "").toLowerCase().includes(materialSearch.toLowerCase()))
-                          .slice(0, 60)
-                          .map((p, i) => (
-                            <div
-                              key={p.id ?? p.codart ?? i}
-                              style={{
-                                padding:"9px 14px", fontSize:13, cursor:"pointer",
-                                background: form.material === p.articulo ? "#e8f4fb" : "transparent",
-                                borderBottom:"1px solid #f0f5fa",
-                                display:"flex", justifyContent:"space-between", alignItems:"center"
-                              }}
-                              onMouseDown={() => {
-                                setForm(prev => ({ ...prev, material: p.articulo, materialPrecio: parseFloat(p.precio) || 0 }));
-                                setMaterialSearch("");
-                                setMaterialDropdown(false);
-                              }}
-                            >
-                              <span>{p.codart ? <span style={{color:"#4a8ab5",fontFamily:"monospace",marginRight:6}}>[{p.codart}]</span> : null}{p.articulo}</span>
-                              {p.precio != null && <span style={{color:"#2d7fc1",fontWeight:700,fontSize:12,marginLeft:8}}>${parseFloat(p.precio).toLocaleString("es-AR")}</span>}
-                            </div>
-                          ))
-                        }
-                        {insumosMuebles.filter(p => !materialSearch || (p.articulo ?? "").toLowerCase().includes(materialSearch.toLowerCase()) || (p.codart ?? "").toLowerCase().includes(materialSearch.toLowerCase())).length === 0 && (
-                          <div style={{padding:"12px 14px",fontSize:12,color:"#b0c0d0",fontStyle:"italic"}}>Sin resultados</div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
 
-              {/* Correderas */}
-              <div className="field">
-                <span className="label-text">
-                  🔩 CORREDERAS
-                  {form.corredera && <span style={{marginLeft:8,fontSize:"10px",color:"#2d7fc1",fontWeight:600}}>{formatPeso(totalCorredera)}</span>}
-                </span>
-                {cargandoInsumos ? (
-                  <div style={{fontSize:"12px",color:"#4a8ab5",fontStyle:"italic",padding:"10px 0"}}>⏳ Cargando...</div>
-                ) : (
-                  <select className="input" style={{cursor:"pointer"}} value={form.corredera}
-                    onChange={e => {
-                      const sel = herrajes.find(p => p.articulo === e.target.value);
-                      setForm(prev => ({ ...prev, corredera: e.target.value, correderaPrecio: sel ? parseFloat(sel.precio) || 0 : 0 }));
-                    }}>
-                    <option value="">— Sin correderas —</option>
-                    {herrajes.map((p, i) => (
-                      <option key={p.id ?? p.codart ?? i} value={p.articulo}>
-                        {p.articulo}{p.precio != null ? ` — $${parseFloat(p.precio).toLocaleString("es-AR")}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {form.corredera && (
-                  <div style={{display:"flex",alignItems:"center",gap:10,marginTop:8}}>
-                    <span className="label-text" style={{margin:0}}>CANTIDAD</span>
-                    <input className="input" type="number" min="1" style={{width:80,textAlign:"center"}}
-                      value={form.correderaCantidad}
-                      onChange={e => setForm(prev => ({ ...prev, correderaCantidad: Math.max(1, Number(e.target.value)) }))} />
-                    <span style={{fontSize:"12px",color:"#6a8aa0"}}>× {formatPeso(form.correderaPrecio)} c/u</span>
-                  </div>
-                )}
-              </div>
 
               {/* Cantidad */}
               <div className="field">

@@ -32,7 +32,8 @@ const makeColumns = (onVer) => [
   { key: "costosi",   label: "Costo s/imp.",    render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
   { key: "costosicf", label: "Costo s/imp. c/flete", render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
   { key: "costocicf", label: "Costo c/imp. c/flete", render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
-  { key: "precio",    label: "Precio", render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
+  { key: "precio",    label: "Precio",    render: (v) => v != null ? `${parseFloat(v).toLocaleString("es-AR")}` : "-" },
+  { key: "precio_un",  label: "Precio UN", render: (v) => v != null ? `${parseFloat(v).toLocaleString("es-AR")}` : "-" },
   { key: "descuento", label: "Descuento %", render: (v) => v != null ? `${parseFloat(v)}%` : "-" },
   { key: "flete",     label: "Flete",  render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
   { key: "proveedor", label: "Proveedor" },
@@ -51,7 +52,7 @@ const EMPTY = {
   codartint: "", articulo: "", area: "", unidad: "", artfoto: "",
   precio: "", proveedor: "", cantidad: "", ancho: "", alto: "",
   linea: "", color: "", familia: "", rubro: "",
-  costosi: "", costosicf: "", costocicf: "", costo_placa: "",
+  precio_un: "", costosi: "", costosicf: "", costocicf: "", costo_placa: "",
   descuento: "", flete: "", valorlista: "", margen: "",
   codprov: "", codfam: "", codrub: "",
   codartprov: "",
@@ -64,7 +65,6 @@ const FIELDS_LEFT_TOP = [
 ];
 
 const FIELDS_LEFT_BOTTOM = [
-  { field: "unidad",    label: "Unidad",      placeholder: "Ej: UN, M2, KG" },
   { field: "cantidad",  label: "Cantidad",    placeholder: "Ej: 1" },
   { field: "flete",     label: "Flete ($)",   placeholder: "Ej: 500" },
 ];
@@ -587,6 +587,22 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
                 )}
               </div>
 
+              {/* ── Unidad de medida ── */}
+              <div className="form-field" style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontWeight: 600, marginBottom: 4, fontSize: 13 }}>Unidad</label>
+                <select
+                  value={form.unidad || ""}
+                  onChange={e => setForm(f => ({ ...f, unidad: e.target.value }))}
+                  style={{
+                    width: "100%", padding: "8px 12px", borderRadius: 6,
+                    border: "1px solid #ccc", fontSize: 14, background: "#fff"
+                  }}
+                >
+                  <option value="">-- Seleccionar --</option>
+                  <option value="UN">UN — Unidad</option>
+                  <option value="M2">M2 — Metro cuadrado</option>
+                </select>
+              </div>
               {FIELDS_LEFT_BOTTOM.map((f) => <FormField key={f.field} {...f} form={form} setForm={setForm} />)}
 
               {/* ── Costos con auto-cálculo ── */}
@@ -702,6 +718,12 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
                     <div className="form-group">
                       <label className="form-label">Precio ($) <small style={{color:"#6699bb"}}>(c/imp. c/flete × (1 + margen%))</small></label>
                       <input className="form-input" style={readonlyStyle} readOnly value={form.precio} placeholder="—" />
+                    </div>
+
+                    {/* Precio UN — columna generada, solo lectura */}
+                    <div className="form-group">
+                      <label className="form-label">Precio UN ($)</label>
+                      <input className="form-input" style={readonlyStyle} readOnly value={form.precio_un ?? ""} placeholder="—" />
                     </div>
                   </>
                 );

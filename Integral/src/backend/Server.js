@@ -193,7 +193,7 @@ app.get("/productos/count", (req, res) => {
     sql += " AND familia = ?";
     params.push(familia);
   }
-  if (rubro) {
+  if (rubro && rubro.toUpperCase() !== "GENERAL") {
     sql += " AND rubro = ?";
     params.push(rubro);
   }
@@ -320,16 +320,15 @@ app.get("/articulos/lineas", (req, res) => {
 app.get("/articulos/familias-por-rubro", (req, res) => {
   const { rubro } = req.query;
   if (!rubro) return res.status(400).json({ error: "rubro requerido" });
-  db.query(
-    `SELECT DISTINCT familia FROM articulos
-     WHERE rubro = ? AND familia IS NOT NULL AND TRIM(familia) != ''
-     ORDER BY familia`,
-    [rubro],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(result.map((r) => r.familia).filter(Boolean));
-    },
-  );
+  // GENERAL aplica a todos → devolver todas las familias
+  const sql = rubro.toUpperCase() === "GENERAL"
+    ? "SELECT DISTINCT familia FROM articulos WHERE familia IS NOT NULL AND TRIM(familia) != '' ORDER BY familia"
+    : "SELECT DISTINCT familia FROM articulos WHERE rubro = ? AND familia IS NOT NULL AND TRIM(familia) != '' ORDER BY familia";
+  const params = rubro.toUpperCase() === "GENERAL" ? [] : [rubro];
+  db.query(sql, params, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(result.map((r) => r.familia).filter(Boolean));
+  });
 });
 
 // Todas las familias únicas (para selector en Productos)
@@ -376,7 +375,7 @@ app.get("/articulos/por-rubro", (req, res) => {
   if (!rubro && !familia)
     return res.status(400).json({ error: "rubro o familia requerido" });
 
-  let sql = "SELECT codartint, articulo, precio FROM articulos WHERE 1=1";
+  let sql = "SELECT codartint, codartint AS codart, articulo, precio FROM articulos WHERE 1=1";
   const params = [];
 
   if (rubro) {
@@ -394,6 +393,17 @@ app.get("/articulos/por-rubro", (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(result);
   });
+});
+
+// Bisagras para vanitory
+app.get("/productos/bisagras-vanitory", (req, res) => {
+  db.query(
+    `SELECT * FROM articulos WHERE UPPER(articulo) LIKE '%BISAGRA%' ORDER BY articulo`,
+    (err, result) => {
+      if (err) { console.error("[bisagras-vanitory] Error SQL:", err.message); return res.status(500).json({ error: err.message }); }
+      res.json(result);
+    }
+  );
 });
 
 // Guías para vanitory: columna articulo contiene "GUIAS TELESCOPICAS"
@@ -416,7 +426,7 @@ app.get("/productos/guias-vanitory", (req, res) => {
 // Placas para vanitory: columna articulo contiene "PLACA", proveedor != DANIEL ROQUE SRL
 app.get("/productos/placas-vanitory", (req, res) => {
   db.query(
-    `SELECT * FROM articulos
+`SELECT *, precio_un FROM articulos
      WHERE UPPER(TRIM(familia)) LIKE '%INSUMO AMOBLAMIENTOS%'
        AND UPPER(articulo) LIKE '%PLACA%'
        AND UPPER(TRIM(proveedor)) != 'DANIEL ROQUE SRL'
@@ -429,6 +439,24 @@ app.get("/productos/placas-vanitory", (req, res) => {
       console.log("[placas-vanitory] Resultados:", result.length);
       res.json(result);
     },
+  );
+});
+
+// Artículos familia "INSUMO AMOBLAMIENTOS" y proveedor "AGLOLAM S.A." — para presupuesto wall panel
+app.get("/productos/wall-panel", (req, res) => {
+  db.query(
+`SELECT *, precio_un FROM articulos
+     WHERE UPPER(TRIM(familia)) LIKE '%INSUMO AMOBLAMIENTOS%'
+       AND UPPER(TRIM(proveedor)) = 'AGLOLAM S.A.'
+     ORDER BY articulo`,
+    (err, result) => {
+      if (err) {
+        console.error("[wall-panel] Error SQL:", err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log("[wall-panel] Resultados:", result.length);
+      res.json(result);
+    }
   );
 });
 

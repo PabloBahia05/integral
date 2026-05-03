@@ -393,11 +393,21 @@ export default function Formulas({ formulas, onSave, onDelete, selected, onSelec
         .then(r => r.json())
         .then(data => setFamilias(Array.isArray(data) ? data : []))
         .catch(() => {});
-      // Cargar artículos del rubro directamente
-      fetch(`http://localhost:3001/articulos/por-rubro?rubro=${encodeURIComponent(rubro)}`)
-        .then(r => r.json())
-        .then(data => setArtsPorRubro(Array.isArray(data) ? data : []))
-        .catch(() => {});
+      // Cargar artículos del rubro + GENERAL
+      (async () => {
+        try {
+          const arts = await fetch(`http://localhost:3001/articulos/por-rubro?rubro=${encodeURIComponent(rubro)}`).then(r => r.json());
+          let todos = Array.isArray(arts) ? arts : [];
+          if (rubro.toUpperCase() !== "GENERAL") {
+            try {
+              const g = await fetch("http://localhost:3001/articulos/por-rubro?rubro=GENERAL").then(r => r.json());
+              const codsSeen = new Set(todos.map(a => a.codartint));
+              (Array.isArray(g) ? g : []).forEach(a => { if (!codsSeen.has(a.codartint)) todos.push(a); });
+            } catch {}
+          }
+          setArtsPorRubro(todos);
+        } catch { setArtsPorRubro([]); }
+      })();
     } else {
       // Sin rubro → recargar todas las familias
       fetch("http://localhost:3001/articulos/familias-todas")
@@ -437,7 +447,9 @@ export default function Formulas({ formulas, onSave, onDelete, selected, onSelec
       (f.descripcion ?? "").toLowerCase().includes(q) ||
       (f.formula     ?? "").toLowerCase().includes(q)
     );
-    const matchRubro = rubroFiltro ? (f.rubro ?? "") === rubroFiltro : true;
+    const matchRubro = rubroFiltro
+      ? (f.rubro ?? "") === rubroFiltro || (f.rubro ?? "").toUpperCase() === "GENERAL"
+      : true;
     return matchSearch && matchRubro;
   });
 

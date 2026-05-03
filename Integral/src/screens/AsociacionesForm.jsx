@@ -5,11 +5,11 @@ const SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 const EMPTY = () => ({
   codart: "", articulo: "", rubro: "", familia: "",
-  codf1: "", form1: "", codf2: "", form2: "",
-  codf3: "", form3: "", codf4: "", form4: "",
-  codf5: "", form5: "", codf6: "", form6: "",
-  codf7: "", form7: "", codf8: "", form8: "",
-  codf9: "", form9: "", codf10: "", form10: "",
+  codf1: "", form1: "", titulo1: "", codf2: "", form2: "", titulo2: "",
+  codf3: "", form3: "", titulo3: "", codf4: "", form4: "", titulo4: "",
+  codf5: "", form5: "", titulo5: "", codf6: "", form6: "", titulo6: "",
+  codf7: "", form7: "", titulo7: "", codf8: "", form8: "", titulo8: "",
+  codf9: "", form9: "", titulo9: "", codf10: "", form10: "", titulo10: "",
 });
 
 const styles = `
@@ -268,6 +268,16 @@ const styles = `
     background: #f1f5f9; color: #94a3b8; cursor: default;
     font-family: monospace; font-size: 11.5px;
   }
+  .aform-slot-titulo {
+    padding: 6px 10px; border: 1.5px solid #e2e8f0; border-radius: 7px;
+    font-family: 'DM Sans', sans-serif; font-size: 12.5px; color: #1a2332;
+    background: #fff; outline: none; transition: border-color 0.18s;
+    width: 100%; box-sizing: border-box;
+  }
+  .aform-slot-titulo:focus {
+    border-color: #e63946; box-shadow: 0 0 0 2px rgba(230,57,70,0.08);
+  }
+  .aform-slot-titulo::placeholder { color: #aab5c8; font-style: italic; }
 
   .aform-modal-actions {
     display: flex; justify-content: flex-end; gap: 10px;
@@ -368,6 +378,14 @@ export default function AsociacionesForm({
       .catch(() => setArtsPadre([]));
   }, [rubroPadre, familiaPadre]);
 
+  useEffect(() => {
+    if (!artsPadre.length || !form.articulo) return;
+    const found = artsPadre.find(a => a.articulo === form.articulo);
+    if (found && found.codart && !form.codart) {
+      setForm(f => ({ ...f, codart: found.codart }));
+    }
+  }, [artsPadre]);
+
   const openAdd = () => {
     setForm(EMPTY()); setEditId(null);
     setRubroPadre(""); setFamiliaPadre("");
@@ -377,7 +395,8 @@ export default function AsociacionesForm({
   };
 
   const openEdit = (row) => {
-    setForm({ ...row }); setEditId(row.id);
+    setForm({ ...row });   // row ya tiene codart y articulo correctos
+    setEditId(row.id);
     setRubroPadre(row.rubro ?? "");
     setFamiliaPadre(row.familia ?? "");
     setRubroSlots(Object.fromEntries(SLOTS.map(n => [n, ""])));
@@ -415,7 +434,7 @@ export default function AsociacionesForm({
     setForm(f => ({
       ...f,
       articulo: found ? found.articulo : value,
-      codart:   found ? found.codart   : f.codart,
+      codart:   found ? found.codart   : "",
     }));
   };
 
@@ -425,6 +444,8 @@ export default function AsociacionesForm({
       ...f,
       [`codf${slot}`]: codform,
       [`form${slot}`]: found ? (found.formula ?? "") : "",
+      // Si se borra la fórmula, limpiar también el título
+      ...(!codform ? { [`titulo${slot}`]: "" } : {}),
     }));
   };
 
@@ -515,7 +536,14 @@ export default function AsociacionesForm({
                     {SLOTS.map(n => (
                       <td key={n}>
                         {row[`codf${n}`]
-                          ? <div className="aform-slot-cell"><span className="aform-slot-form">{row[`codf${n}`]}</span></div>
+                          ? <div className="aform-slot-cell">
+                              <span className="aform-slot-form">{row[`codf${n}`]}</span>
+                              {row[`titulo${n}`] && (
+                                <span style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>
+                                  {row[`titulo${n}`]}
+                                </span>
+                              )}
+                            </div>
                           : <span className="aform-slot-empty">—</span>
                         }
                       </td>
@@ -623,6 +651,15 @@ export default function AsociacionesForm({
                           <option key={f.id} value={f.codform}>{f.codform}</option>
                         ))}
                       </select>
+                      {/* Título de la fórmula */}
+                      <input
+                        className="aform-slot-titulo"
+                        value={form[`titulo${n}`] ?? ""}
+                        onChange={e => setForm(f => ({ ...f, [`titulo${n}`]: e.target.value }))}
+                        placeholder="Título (ej: Peso neto, Rendimiento…)"
+                        disabled={!codformSlot}
+                        style={!codformSlot ? { opacity: 0.4, cursor: "not-allowed" } : {}}
+                      />
                       {/* Preview expresión */}
                       <input
                         className="aform-slot-input readonly"
