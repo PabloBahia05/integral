@@ -93,8 +93,6 @@ export default function App() {
   // ── Navegación interna Amoblamiento ─────────────────────
   const [amoblamientoVista, setAmoblamientoVista] = useState("selector");
   const [presupuestoAbierto, setPresupuestoAbierto] = useState(null);
-  // ── Navegación directa a VerTablas ──────────────────────
-  const [tablaInicialVerTablas, setTablaInicialVerTablas] = useState(null);
 
   const addLog = (msg) => setLog((prev) => [msg, ...prev.slice(0, 4)]);
 
@@ -528,12 +526,10 @@ export default function App() {
               <PresupuestoNuevo
                 onVolver={() => { setScreen(null); setPresupuestoAbierto(null); }}
                 onGuardado={() => {}}
-                onVerTabla={(tablaId) => { if (tablaId) { setTablaInicialVerTablas(tablaId); setScreen("ver-tablas"); } else { setScreen("presupuestos-nuevo-tabla"); } }}
+                onVerTabla={() => setScreen("presupuestos-nuevo-tabla")}
                 presupuestoInicial={presupuestoAbierto}
                 tiposVanitory={tiposVanitory}
                 tiposVanitoryRUD={tiposVanitoryRUD}
-                tiposDespensero={tiposDespensero}
-                tiposDespenseroRUD={tiposDespenseroRUD}
               />
             )}
             {screen === "presupuestos-nuevo-tabla" && (
@@ -608,7 +604,6 @@ export default function App() {
                 proveedores={proveedores}
                 proveedoresCRUD={proveedoresCRUD}
                 selectedProveedor={selectedProveedor}
-                tablaInicial={tablaInicialVerTablas}
               />
             )}
 

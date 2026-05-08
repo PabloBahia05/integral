@@ -598,25 +598,6 @@ app.delete("/margen/:id", (req, res) => {
 // ───────────────────────────────────────────
 // VANITORY TIPOS
 // ───────────────────────────────────────────
-// Buscar artículos por nombre (para el selector en TiposVanitory)
-app.get("/vanitory-tipos/buscar-articulo", (req, res) => {
-  const { q } = req.query;
-  if (!q || !q.trim()) return res.json([]);
-  const like = `%${q.trim()}%`;
-  db.query(
-    `SELECT id, codartint, articulo, rubro, artfoto
-     FROM articulos
-     WHERE articulo LIKE ?
-     ORDER BY articulo
-     LIMIT 20`,
-    [like],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(result);
-    }
-  );
-});
-
 app.get("/vanitory-tipos", (req, res) => {
   db.query("SELECT * FROM vanitory_tipos ORDER BY id", (err, r) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -683,25 +664,6 @@ app.delete("/vanitory-tipos/:id", (req, res) => {
 // ───────────────────────────────────────────
 // ESCRITORIO TIPOS
 // ───────────────────────────────────────────
-// Buscar artículos por nombre (para el selector en TiposEscritorio)
-app.get("/escritorio-tipos/buscar-articulo", (req, res) => {
-  const { q } = req.query;
-  if (!q || !q.trim()) return res.json([]);
-  const like = `%${q.trim()}%`;
-  db.query(
-    `SELECT id, codartint, articulo, rubro, artfoto
-     FROM articulos
-     WHERE articulo LIKE ?
-     ORDER BY articulo
-     LIMIT 20`,
-    [like],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(result);
-    }
-  );
-});
-
 app.get("/escritorio-tipos", (req, res) => {
   db.query("SELECT * FROM escritorio_tipos ORDER BY id", (err, r) => {
     if (err) return res.status(500).json({ error: err.message });

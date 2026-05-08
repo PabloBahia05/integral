@@ -598,25 +598,6 @@ app.delete("/margen/:id", (req, res) => {
 // ───────────────────────────────────────────
 // VANITORY TIPOS
 // ───────────────────────────────────────────
-// Buscar artículos por nombre (para el selector en TiposVanitory)
-app.get("/vanitory-tipos/buscar-articulo", (req, res) => {
-  const { q } = req.query;
-  if (!q || !q.trim()) return res.json([]);
-  const like = `%${q.trim()}%`;
-  db.query(
-    `SELECT id, codartint, articulo, rubro, artfoto
-     FROM articulos
-     WHERE articulo LIKE ?
-     ORDER BY articulo
-     LIMIT 20`,
-    [like],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(result);
-    }
-  );
-});
-
 app.get("/vanitory-tipos", (req, res) => {
   db.query("SELECT * FROM vanitory_tipos ORDER BY id", (err, r) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -683,25 +664,6 @@ app.delete("/vanitory-tipos/:id", (req, res) => {
 // ───────────────────────────────────────────
 // ESCRITORIO TIPOS
 // ───────────────────────────────────────────
-// Buscar artículos por nombre (para el selector en TiposEscritorio)
-app.get("/escritorio-tipos/buscar-articulo", (req, res) => {
-  const { q } = req.query;
-  if (!q || !q.trim()) return res.json([]);
-  const like = `%${q.trim()}%`;
-  db.query(
-    `SELECT id, codartint, articulo, rubro, artfoto
-     FROM articulos
-     WHERE articulo LIKE ?
-     ORDER BY articulo
-     LIMIT 20`,
-    [like],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(result);
-    }
-  );
-});
-
 app.get("/escritorio-tipos", (req, res) => {
   db.query("SELECT * FROM escritorio_tipos ORDER BY id", (err, r) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -737,26 +699,6 @@ app.delete("/escritorio-tipos/:id", (req, res) => {
 // ───────────────────────────────────────────
 // DESPENSERO TIPOS
 // ───────────────────────────────────────────
-
-// Buscar artículos por nombre (para el selector en TiposDespensero)
-app.get("/despensero-tipos/buscar-articulo", (req, res) => {
-  const { q } = req.query;
-  if (!q || !q.trim()) return res.json([]);
-  const like = `%${q.trim()}%`;
-  db.query(
-    `SELECT id, codartint, articulo, rubro, artfoto
-     FROM articulos
-     WHERE articulo LIKE ?
-     ORDER BY articulo
-     LIMIT 20`,
-    [like],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(result);
-    }
-  );
-});
-
 app.get("/despensero-tipos", (req, res) => {
   db.query("SELECT * FROM despensero_tipos ORDER BY id", (err, r) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -767,32 +709,7 @@ app.post("/despensero-tipos", (req, res) => {
   const { id, ...item } = req.body;
   db.query("INSERT INTO despensero_tipos SET ?", item, (err, r) => {
     if (err) return res.status(500).json({ error: err.message });
-    const newId = r.insertId;
-
-    // Sincronizar con articulos: insertar si no existe ya un registro con ese codartint
-    if (item.codtipdes) {
-      db.query(
-        "SELECT id FROM articulos WHERE codartint = ? LIMIT 1",
-        [item.codtipdes],
-        (err2, existing) => {
-          if (!err2 && existing.length === 0) {
-            const articulo = {
-              codartint: item.codtipdes,
-              articulo:  item.nombre ?? "",
-              rubro:     item.rubro  ?? "",
-              artfoto:   item.foto   ?? "",
-              precio:    0,
-              cantidad:  0,
-            };
-            db.query("INSERT INTO articulos SET ?", articulo, (err3) => {
-              if (err3) console.error("Error insertando en articulos:", err3.message);
-            });
-          }
-        }
-      );
-    }
-
-    res.json({ id: newId, ...item });
+    res.json({ id: r.insertId, ...item });
   });
 });
 app.put("/despensero-tipos/:id", (req, res) => {
@@ -800,23 +717,6 @@ app.put("/despensero-tipos/:id", (req, res) => {
   const { id: _id, ...item } = req.body;
   db.query("UPDATE despensero_tipos SET ? WHERE id = ?", [item, id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
-
-    // Sincronizar nombre/rubro/foto en articulos por codartint
-    if (item.codtipdes) {
-      const artUpdate = {
-        articulo: item.nombre ?? "",
-        rubro:    item.rubro  ?? "",
-        artfoto:  item.foto   ?? "",
-      };
-      db.query(
-        "UPDATE articulos SET ? WHERE codartint = ?",
-        [artUpdate, item.codtipdes],
-        (err2) => {
-          if (err2) console.error("Error actualizando articulos:", err2.message);
-        }
-      );
-    }
-
     res.json({ id, ...item });
   });
 });

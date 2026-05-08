@@ -87,13 +87,6 @@ export default function TiposVanitory({
   const [agregandoRubro, setAgregandoRubro] = useState(false);
   const fileRef = useRef(null);
 
-  // Buscador de artículos
-  const [artQuery, setArtQuery]               = useState("");
-  const [artResultados, setArtResultados]     = useState([]);
-  const [artBuscando, setArtBuscando]         = useState(false);
-  const [artSeleccionado, setArtSeleccionado] = useState(null);
-  const artTimer                              = useRef(null);
-
   const cargarRubros = () => {
     fetch(`${API}/articulos/rubros`)
       .then((r) => r.json())
@@ -106,33 +99,6 @@ export default function TiposVanitory({
   useEffect(() => {
     cargarRubros();
   }, []);
-
-  const buscarArticulos = (q) => {
-    setArtQuery(q);
-    clearTimeout(artTimer.current);
-    if (!q.trim()) { setArtResultados([]); return; }
-    artTimer.current = setTimeout(() => {
-      setArtBuscando(true);
-      fetch(`${API}/vanitory-tipos/buscar-articulo?q=${encodeURIComponent(q)}`)
-        .then((r) => r.json())
-        .then((data) => setArtResultados(Array.isArray(data) ? data : []))
-        .catch(() => setArtResultados([]))
-        .finally(() => setArtBuscando(false));
-    }, 280);
-  };
-
-  const seleccionarArticulo = (art) => {
-    setArtSeleccionado(art);
-    setArtQuery(art.articulo);
-    setArtResultados([]);
-    setForm((f) => ({
-      ...f,
-      nombre:    art.articulo  ?? f.nombre,
-      codtipvan: art.codartint ?? f.codtipvan,
-      rubro:     art.rubro     ?? f.rubro,
-      foto:      art.artfoto   ?? f.foto,
-    }));
-  };
 
   const filtered = (tiposVanitory ?? []).filter((t) => {
     const q = search.toLowerCase();
@@ -149,9 +115,6 @@ export default function TiposVanitory({
     setError("");
     setAgregandoRubro(false);
     setNuevoRubro("");
-    setArtQuery("");
-    setArtResultados([]);
-    setArtSeleccionado(null);
     onOpenModal("nuevo");
   };
 
@@ -167,9 +130,6 @@ export default function TiposVanitory({
     setError("");
     setAgregandoRubro(false);
     setNuevoRubro("");
-    setArtQuery(selected.nombre ?? "");
-    setArtResultados([]);
-    setArtSeleccionado({ articulo: selected.nombre ?? "" });
     onOpenModal("editar");
   };
 
@@ -205,16 +165,19 @@ export default function TiposVanitory({
   };
 
   const handleSubmit = () => {
-    if (!form.nombre.trim())    { setError("Seleccioná un artículo de la lista."); return; }
-    if (!form.codtipvan.trim()) { setError("El código es obligatorio."); return; }
+    if (!form.nombre.trim()) {
+      setError("El nombre es obligatorio.");
+      return;
+    }
+    if (!form.codtipvan.trim()) {
+      setError("El código es obligatorio.");
+      return;
+    }
     onSave(modal === "nuevo" ? form : { ...form, id: selected.id });
     onCloseModal();
     setForm(EMPTY);
     setAgregandoRubro(false);
     setNuevoRubro("");
-    setArtQuery("");
-    setArtResultados([]);
-    setArtSeleccionado(null);
   };
 
   const set = (field, val) => setForm((p) => ({ ...p, [field]: val }));
@@ -383,54 +346,14 @@ export default function TiposVanitory({
           {error && <p className="form-error">{error}</p>}
 
           <div className="form-grid">
-            {/* ── Buscador de artículos ── */}
-            <div className="form-group" style={{ position: "relative" }}>
-              <label className="form-label">Artículo (nombre) *</label>
+            <div className="form-group">
+              <label className="form-label">Nombre *</label>
               <input
                 className="form-input"
-                placeholder="Buscar en artículos…"
-                value={artQuery}
-                onChange={(e) => buscarArticulos(e.target.value)}
-                autoComplete="off"
+                placeholder="Ej: Vanitory Colgante"
+                value={form.nombre}
+                onChange={(e) => set("nombre", e.target.value)}
               />
-              {artBuscando && (
-                <div style={{ fontSize: 11, color: "#6699bb", marginTop: 3 }}>Buscando…</div>
-              )}
-              {artResultados.length > 0 && (
-                <div style={{
-                  position: "absolute", top: "100%", left: 0, right: 0, zIndex: 999,
-                  background: "#fff", border: "1.5px solid #d0dde8", borderRadius: 8,
-                  boxShadow: "0 4px 16px rgba(0,0,0,0.12)", maxHeight: 220, overflowY: "auto",
-                }}>
-                  {artResultados.map((art) => (
-                    <div
-                      key={art.id}
-                      onClick={() => seleccionarArticulo(art)}
-                      style={{
-                        padding: "8px 14px", cursor: "pointer", borderBottom: "1px solid #f0f4f8",
-                        display: "flex", alignItems: "center", gap: 10,
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "#eff4ff"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = ""; }}
-                    >
-                      {art.artfoto
-                        ? <img src={art.artfoto} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, border: "1px solid #d0dde8" }} />
-                        : <div style={{ width: 32, height: 32, background: "#e8f0f7", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🛁</div>
-                      }
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "#0a3a5c" }}>{art.articulo}</div>
-                        {art.rubro && <div style={{ fontSize: 11, color: "#6699bb" }}>{art.rubro}</div>}
-                      </div>
-                      <div style={{ marginLeft: "auto", fontFamily: "Space Mono, monospace", fontSize: 10, color: "#e63946" }}>{art.codartint}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {artSeleccionado && artResultados.length === 0 && artQuery && (
-                <div style={{ fontSize: 11, color: "#2563eb", marginTop: 3 }}>
-                  ✓ Vinculado a: <strong>{artSeleccionado.articulo}</strong>
-                </div>
-              )}
             </div>
             <div className="form-group">
               <label className="form-label">Código *</label>

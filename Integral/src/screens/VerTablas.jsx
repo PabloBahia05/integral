@@ -106,8 +106,9 @@ export default function VerTablas({
   proveedores,
   proveedoresCRUD,
   selectedProveedor,
+  tablaInicial,
 }) {
-  const [tablaActiva, setTablaActiva] = useState(null);
+  const [tablaActiva, setTablaActiva] = useState(tablaInicial ?? null);
   const [modal, setModal] = useState(null);
   const [selectedLista, setSelectedLista] = useState(null);
 
@@ -197,6 +198,7 @@ export default function VerTablas({
           selected={selectedTipoDespensero}
           modal={modal}
           {...localCRUD(tiposDespenseroRUD ?? {})}
+          onSelect={(row) => tiposDespenseroRUD?.onSelect?.(row)}
         />
       </div>
     );

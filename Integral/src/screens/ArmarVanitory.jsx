@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 const API = "http://localhost:3001";
 
-const CAJON_EMPTY = { ancho: "", alto: "", prof: "" };
+const CAJON_EMPTY = { cantidad: "", ancho: "", alto: "", prof: "" };
 
 export default function ArmarVanitory({ modelo: modeloRaw, onVolver }) {
   const modelo = modeloRaw
@@ -27,8 +27,8 @@ export default function ArmarVanitory({ modelo: modeloRaw, onVolver }) {
     cajon1: { ...CAJON_EMPTY },
     cajon2: { ...CAJON_EMPTY },
     cajon3: { ...CAJON_EMPTY },
-    puerta1: { ancho: "", alto: "" },
-    puerta2: { ancho: "", alto: "" },
+    puerta1: { cantidad: "", ancho: "", alto: "" },
+    puerta2: { cantidad: "", ancho: "", alto: "" },
     intermedios: "",
   });
 
@@ -176,18 +176,23 @@ export default function ArmarVanitory({ modelo: modeloRaw, onVolver }) {
       CORREDERA_CANTIDAD: Number(form.correderaCantidad) || 1,
       MARGEN: Number(form.margen) || 0, PRECIO: Number(total), REVISION: 0,
       // Cajones
+      CANT_J1: form.cajon1.cantidad !== "" ? Number(form.cajon1.cantidad) : null,
       AHJ1: form.cajon1.ancho !== "" ? Number(form.cajon1.ancho) : null,
       ALJ1: form.cajon1.alto  !== "" ? Number(form.cajon1.alto)  : null,
       PRJ1: form.cajon1.prof  !== "" ? Number(form.cajon1.prof)  : null,
+      CANT_J2: form.cajon2.cantidad !== "" ? Number(form.cajon2.cantidad) : null,
       AHJ2: form.cajon2.ancho !== "" ? Number(form.cajon2.ancho) : null,
       ALJ2: form.cajon2.alto  !== "" ? Number(form.cajon2.alto)  : null,
       PRJ2: form.cajon2.prof  !== "" ? Number(form.cajon2.prof)  : null,
+      CANT_J3: form.cajon3.cantidad !== "" ? Number(form.cajon3.cantidad) : null,
       AHJ3: form.cajon3.ancho !== "" ? Number(form.cajon3.ancho) : null,
       ALJ3: form.cajon3.alto  !== "" ? Number(form.cajon3.alto)  : null,
       PRJ3: form.cajon3.prof  !== "" ? Number(form.cajon3.prof)  : null,
       // Puertas
+      CANT_PTA1: form.puerta1.cantidad !== "" ? Number(form.puerta1.cantidad) : null,
       AHPTA1: form.puerta1.ancho !== "" ? Number(form.puerta1.ancho) : null,
       ALPTA1: form.puerta1.alto  !== "" ? Number(form.puerta1.alto)  : null,
+      CANT_PTA2: form.puerta2.cantidad !== "" ? Number(form.puerta2.cantidad) : null,
       AHPTA2: form.puerta2.ancho !== "" ? Number(form.puerta2.ancho) : null,
       ALPTA2: form.puerta2.alto  !== "" ? Number(form.puerta2.alto)  : null,
       // Intermedios
@@ -212,8 +217,8 @@ export default function ArmarVanitory({ modelo: modeloRaw, onVolver }) {
     const fecha = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
     const nro   = presupuestoId ? presupuestoId.padStart(4, "0") : "----";
     const cajonRow = (n, c) => {
-      if (c.ancho === "" && c.alto === "" && c.prof === "") return "";
-      return `<div class="info-row"><span class="info-label">Cajón ${n}</span><span class="info-value">${c.ancho !== "" ? `Ancho: ${c.ancho} cm` : ""}${c.alto !== "" ? ` · Alto: ${c.alto} cm` : ""}${c.prof !== "" ? ` · Prof: ${c.prof} cm` : ""}</span></div>`;
+      if (c.cantidad === "" && c.ancho === "" && c.alto === "" && c.prof === "") return "";
+      return `<div class="info-row"><span class="info-label">Cajón ${n}</span><span class="info-value">${c.cantidad !== "" ? `Cant: ${c.cantidad}` : ""}${c.ancho !== "" ? ` · Ancho: ${c.ancho} cm` : ""}${c.alto !== "" ? ` · Alto: ${c.alto} cm` : ""}${c.prof !== "" ? ` · Prof: ${c.prof} cm` : ""}</span></div>`;
     };
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
 <title>Armar Vanitory N° ${nro}</title>
@@ -263,8 +268,8 @@ export default function ArmarVanitory({ modelo: modeloRaw, onVolver }) {
     </div>
     <div class="info-box">
       <div class="info-box-title">🚪 Puertas e intermedios</div>
-      ${form.puerta1.ancho !== "" || form.puerta1.alto !== "" ? `<div class="info-row"><span class="info-label">Puerta 1</span><span class="info-value">${form.puerta1.ancho !== "" ? `Ancho: ${form.puerta1.ancho} cm` : ""}${form.puerta1.alto !== "" ? ` · Alto: ${form.puerta1.alto} cm` : ""}</span></div>` : ""}
-      ${form.puerta2.ancho !== "" || form.puerta2.alto !== "" ? `<div class="info-row"><span class="info-label">Puerta 2</span><span class="info-value">${form.puerta2.ancho !== "" ? `Ancho: ${form.puerta2.ancho} cm` : ""}${form.puerta2.alto !== "" ? ` · Alto: ${form.puerta2.alto} cm` : ""}</span></div>` : ""}
+      ${form.puerta1.cantidad !== "" || form.puerta1.ancho !== "" || form.puerta1.alto !== "" ? `<div class="info-row"><span class="info-label">Puerta 1</span><span class="info-value">${form.puerta1.cantidad !== "" ? `Cant: ${form.puerta1.cantidad}` : ""}${form.puerta1.ancho !== "" ? ` · Ancho: ${form.puerta1.ancho} cm` : ""}${form.puerta1.alto !== "" ? ` · Alto: ${form.puerta1.alto} cm` : ""}</span></div>` : ""}
+      ${form.puerta2.cantidad !== "" || form.puerta2.ancho !== "" || form.puerta2.alto !== "" ? `<div class="info-row"><span class="info-label">Puerta 2</span><span class="info-value">${form.puerta2.cantidad !== "" ? `Cant: ${form.puerta2.cantidad}` : ""}${form.puerta2.ancho !== "" ? ` · Ancho: ${form.puerta2.ancho} cm` : ""}${form.puerta2.alto !== "" ? ` · Alto: ${form.puerta2.alto} cm` : ""}</span></div>` : ""}
       ${form.intermedios !== "" ? `<div class="info-row"><span class="info-label">Intermedios</span><span class="info-value">${form.intermedios}</span></div>` : ""}
     </div>
     <div class="totals-wrap"><div class="totals-box">
@@ -289,8 +294,8 @@ export default function ArmarVanitory({ modelo: modeloRaw, onVolver }) {
   // ─── Componente cajón ───────────────────────────────────────────────────────
   const SeccionCajon = ({ numero }) => {
     const c = form[`cajon${numero}`];
-    const tieneAlgo = c.ancho !== "" || c.alto !== "" || c.prof !== "";
-    const inp = (field, label, cod) => (
+    const tieneAlgo = c.cantidad !== "" || c.ancho !== "" || c.alto !== "" || c.prof !== "";
+    const inp = (field, label, cod, ph) => (
       <div style={{ flex: 1 }}>
         <span style={{ display: "block", fontFamily: "'Rajdhani',sans-serif", fontSize: 10, fontWeight: 700,
           letterSpacing: "0.12em", color: "#4a8ab5", textTransform: "uppercase", marginBottom: 5 }}>
@@ -298,7 +303,7 @@ export default function ArmarVanitory({ modelo: modeloRaw, onVolver }) {
         </span>
         <input
           className="input"
-          type="number" min="0" placeholder="cm"
+          type="number" min="0" placeholder={ph}
           value={c[field]}
           onChange={e => setCajon(numero, field, e.target.value)}
           style={{ textAlign: "center" }}
@@ -321,9 +326,10 @@ export default function ArmarVanitory({ modelo: modeloRaw, onVolver }) {
           )}
         </div>
         <div style={{ display: "flex", gap: 12, padding: "14px 16px", background: "#fff" }}>
-          {inp("ancho", "Ancho cajón", `AHJ${numero}`)}
-          {inp("alto",  "Alto cajón",  `ALJ${numero}`)}
-          {inp("prof",  "Prof. cajón", `PRJ${numero}`)}
+          {inp("cantidad", "Cantidad",    `CANT_J${numero}`, "u.")}
+          {inp("ancho",   "Ancho",       `AHJ${numero}`,    "cm")}
+          {inp("alto",    "Alto",        `ALJ${numero}`,    "cm")}
+          {inp("prof",    "Prof.",       `PRJ${numero}`,    "cm")}
         </div>
       </div>
     );
@@ -332,8 +338,8 @@ export default function ArmarVanitory({ modelo: modeloRaw, onVolver }) {
   // ─── Componente puerta ──────────────────────────────────────────────────────
   const SeccionPuerta = ({ numero }) => {
     const p = form[`puerta${numero}`];
-    const tieneAlgo = p.ancho !== "" || p.alto !== "";
-    const inp = (field, label, cod) => (
+    const tieneAlgo = p.cantidad !== "" || p.ancho !== "" || p.alto !== "";
+    const inp = (field, label, cod, ph) => (
       <div style={{ flex: 1 }}>
         <span style={{ display: "block", fontFamily: "'Rajdhani',sans-serif", fontSize: 10, fontWeight: 700,
           letterSpacing: "0.12em", color: "#7c3aed", textTransform: "uppercase", marginBottom: 5 }}>
@@ -341,7 +347,7 @@ export default function ArmarVanitory({ modelo: modeloRaw, onVolver }) {
         </span>
         <input
           className="input"
-          type="number" min="0" placeholder="cm"
+          type="number" min="0" placeholder={ph}
           value={p[field]}
           onChange={e => setPuerta(numero, field, e.target.value)}
           style={{ textAlign: "center" }}
@@ -364,8 +370,9 @@ export default function ArmarVanitory({ modelo: modeloRaw, onVolver }) {
           )}
         </div>
         <div style={{ display: "flex", gap: 12, padding: "14px 16px", background: "#fff" }}>
-          {inp("ancho", "Ancho puerta", `AHPTA${numero}`)}
-          {inp("alto",  "Alto puerta",  `ALPTA${numero}`)}
+          {inp("cantidad", "Cantidad",     `CANT_PTA${numero}`, "u.")}
+          {inp("ancho",   "Ancho",        `AHPTA${numero}`,    "cm")}
+          {inp("alto",    "Alto",         `ALPTA${numero}`,    "cm")}
         </div>
       </div>
     );
