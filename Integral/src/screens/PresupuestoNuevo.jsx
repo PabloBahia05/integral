@@ -506,8 +506,11 @@ export default function PresupuestoNuevo({
 
   const [numero, setNumero] = useState("Nuevo");
   const [numeroPres, setNumeroPres] = useState(null); // número real asignado tras primer guardado
+  const [presmv, setPresmv] = useState(null); // id de presupuesto_mampara vinculado
+  const [mamparaAEditar, setMamparaAEditar] = useState(null); // datos para editar mampara existente
   const [revision, setRevision] = useState(1);
-  const [cliente, setCliente] = useState("Consumidor final");
+  const [cliente, setCliente] = useState("");
+  const [codcliente, setCodcliente] = useState(null);
   const [clientesSugeridos, setClientesSugeridos] = useState([]);
   const [lineasBD, setLineasBD] = useState([]); // valores distintos de columna 'linea' en articulos
   const [telefonoSearch, setTelefonoSearch] = useState("");
@@ -515,6 +518,8 @@ export default function PresupuestoNuevo({
   const [telefono1, setTelefono1] = useState("");
   const [telefono2, setTelefono2] = useState("");
   const [wapp, setWapp] = useState("");
+  const [domicilio, setDomicilio] = useState("");
+  const [domicilioFiscal, setDomicilioFiscal] = useState("");
   const [localidad, setLocalidad] = useState("Bahía Blanca");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [leyenda, setLeyenda] = useState("");
@@ -1013,6 +1018,7 @@ export default function PresupuestoNuevo({
       setNumeroPres(num);
       setNumero(String(num).padStart(4, "0"));
       setCliente(pres.nombre ?? pres.NOMBRE ?? "");
+      setCodcliente(pres.codcliente ?? pres.CODCLIENTE ?? null);
       setFecha((pres.fecha ?? pres.FECHA ?? "").slice(0, 10));
       setRevision(Number(pres.revision ?? pres.REVISION ?? 1));
       const listaGuardada = pres.lista ?? pres.LISTA ?? null;
@@ -1094,9 +1100,17 @@ export default function PresupuestoNuevo({
         else if (tipo.includes("placard")) nuevoPlacard.placard.push(fila);
         else {
           const precio0 = v1 ?? 0;
+          const seccion = it.tipo ?? it.TIPO ?? "Otros";
+          // Si es mampara, restaurar presmv desde la BD
+          console.log("[cargar] item seccion:", seccion, "| presmv:", it.presmv, "| raw:", JSON.stringify(it));
+          if (seccion.toLowerCase() === "mampara") {
+            const pmv = it.presmv ?? it.PRESMV ?? null;
+            console.log("[cargar] mampara encontrada, pmv:", pmv);
+            if (pmv != null) setPresmv(Number(pmv));
+          }
           otrosItems.push({
             id: `otros-${it.id}`,
-            seccion: it.tipo ?? it.TIPO ?? "Otros",
+            seccion,
             descripcion: articulo,
             nombreart,
             cantidad: parseFloat(it.cantidad ?? it.CANTIDAD) || 1,
@@ -1462,10 +1476,12 @@ export default function PresupuestoNuevo({
     const payload = {
       ...(esEdicion ? { numero: numeroPres } : {}),
       nombre: cliente,
-      fecha,
+      codcliente: codcliente,
+      fecha: new Date().toISOString().slice(0, 10),
       lista: listaPrecio,
       lineasElegidas,
       ...(esNuevaRev ? { nuevaRevision: true } : {}),
+      presmv: presmv ?? null,
       items: presupuestoItems.map((it) => {
         const v1 =
           parseFloat(it.precios?.[0]?.precio ?? it.valor1 ?? it.precio) || null;
@@ -1486,6 +1502,13 @@ export default function PresupuestoNuevo({
           valor3: v3,
           porcentaje3: it.porcentaje3 ?? null,
           precios: it.precios ?? [],
+          ancho: it.ancho ?? null,
+          alto:  it.alto  ?? null,
+          // Vinculación vanitory
+          tabla:  it.tabla  ?? null,  // "V" = vanitory
+          vtabla: it.vtabla ?? null,  // id en presupuesto_vanitory
+          // Vinculación mampara
+          presmv: it.presmv ?? null,  // id en presupuesto_mamparas
         };
       }),
     };
@@ -1504,6 +1527,19 @@ export default function PresupuestoNuevo({
       if (numAsignado != null) {
         setNumeroPres(numAsignado);
         setNumero(String(numAsignado).padStart(4, "0"));
+
+        // ── Vincular subpresupuestos vanitory huérfanos ──
+        const vanitoryIds = presupuestoItems
+          .filter((it) => it.seccion === "Vanitory" && it.vtabla != null)
+          .map((it) => Number(it.vtabla));
+
+        if (vanitoryIds.length > 0) {
+          fetch(`${API}/presupuestos-vanitory/vincular`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ numeropres: numAsignado, ids: vanitoryIds }),
+          }).catch(() => {});
+        }
       }
       setRevision(Number(revAsignada));
 
@@ -2121,6 +2157,7 @@ export default function PresupuestoNuevo({
                     onChange={(e) => {
                       const val = e.target.value;
                       setCliente(val);
+                      setCodcliente(null); // resetear si escribe a mano
                       clearTimeout(window._clienteTimer);
                       if (val.length > 1) {
                         window._clienteTimer = setTimeout(() => {
@@ -2172,9 +2209,12 @@ export default function PresupuestoNuevo({
                             key={i}
                             onMouseDown={() => {
                               setCliente(nombre);
+                              setCodcliente(c.codcliente ?? c.CODCLIENTE ?? null);
                               setTelefono1(tel1);
                               setTelefono2(tel2);
                               setWapp(wp);
+                              setDomicilio(c.domrem ?? c.DOMREM ?? "");
+                              setDomicilioFiscal(c.domiciliofiscal ?? c["domicilio fiscal"] ?? c.DOMICILIO_FISCAL ?? "");
                               setTelefonoSearch(tel1 || tel2 || wp);
                               setClientesSugeridos([]);
                             }}
@@ -2280,9 +2320,12 @@ export default function PresupuestoNuevo({
                             key={i}
                             onMouseDown={() => {
                               setCliente(nombre);
+                              setCodcliente(c.codcliente ?? c.CODCLIENTE ?? null);
                               setTelefono1(tel1);
                               setTelefono2(tel2);
                               setWapp(wp);
+                              setDomicilio(c.domrem ?? c.DOMREM ?? "");
+                              setDomicilioFiscal(c.domiciliofiscal ?? c["domicilio fiscal"] ?? c.DOMICILIO_FISCAL ?? "");
                               setTelefonoSearch(tel1 || tel2 || wp);
                               setTelefonosSugeridos([]);
                             }}
@@ -2398,6 +2441,34 @@ export default function PresupuestoNuevo({
                   ))}
                 </select>
               </div>
+
+              {/* Domicilio */}
+              {(domicilio || domicilioFiscal) && (
+                <div className="pn-field-row" style={{ flexWrap: "wrap", gap: 12 }}>
+                  {domicilio && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "1 1 200px" }}>
+                      <span className="pn-field-label">Domicilio:</span>
+                      <input
+                        className="pn-field-input"
+                        value={domicilio}
+                        onChange={(e) => setDomicilio(e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                  )}
+                  {domicilioFiscal && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "1 1 200px" }}>
+                      <span className="pn-field-label">Dom. Fiscal:</span>
+                      <input
+                        className="pn-field-input"
+                        value={domicilioFiscal}
+                        onChange={(e) => setDomicilioFiscal(e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Líneas */}
               <div className="pn-section-label">Líneas a presupuestar:</div>
@@ -4930,6 +5001,11 @@ export default function PresupuestoNuevo({
                     style={{ fontSize: 13, fontWeight: 700, color: "#0a3a5c" }}
                   >
                     {cliente || "Consumidor final"}
+                    {codcliente && (
+                      <span style={{ fontSize: 11, color: "#666", marginLeft: 6 }}>
+                        (Cód: {codcliente})
+                      </span>
+                    )}
                   </span>
                   {telefono1 && (
                     <span style={{ fontSize: 11, color: "#4a6a8c" }}>
@@ -4942,55 +5018,42 @@ export default function PresupuestoNuevo({
                     </span>
                   )}
                 </div>
-                <button
-                  onClick={async () => {
-                    const payload = {
-                      NOMBRE: cliente || "Consumidor final",
-                      FECHA: fecha,
-                      REVISION: 0,
-                    };
-                    try {
-                      const res = await fetch(`${API}/presupuestos-mamparas`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload),
-                      });
-                      const data = await res.json();
-                      if (!res.ok)
-                        throw new Error(data.error ?? "Error al guardar");
-                      alert(
-                        `✅ Guardado como presupuesto #${data.NUMERO ?? data.id}`,
-                      );
-                    } catch (err) {
-                      alert(`⚠️ ${err.message}`);
-                    }
-                  }}
-                  style={{
-                    padding: "6px 18px",
-                    background: "#0a3a5c",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 2,
-                    fontFamily: "'Space Mono',monospace",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  💾 Guardar en BD
-                </button>
               </div>
               <PresupuestoMamparas
                 clienteInicial={cliente}
+                codclienteInicial={codcliente}
+                numeroPres={numeroPres}
+                presupuestoACargar={mamparaAEditar}
+                onCargado={() => setMamparaAEditar(null)}
                 onSelectItem={(item) => console.log("Mampara:", item)}
                 onGuardado={(data) => {
                   if (!data) return;
-                  agregarAPresupuesto({
-                    id: `mampara-${data.NUMERO ?? data.id ?? Date.now()}`,
+                  // presm = id generado en presupuesto_mamparas → se asigna a presmv
+                  const presm = data.presm ?? (data.id != null ? `M${String(data.id).padStart(5, "0")}` : null);
+                  if (presm != null) setPresmv(presm); // guardar como string M00088
+
+                  const itemId = `mampara-${presm ?? Date.now()}`;
+                  const nuevoItem = {
+                    id: itemId,
                     seccion: "Mampara",
                     descripcion: data.MODELO ?? "Mampara",
                     cantidad: Number(data.CANTIDAD ?? 1),
                     precio: Number(data.PRECIO ?? 0),
                     subtotal: Number(data.PRECIO ?? 0),
+                    ancho: Number(data.ANCHO ?? 0),
+                    alto:  Number(data.ALTO  ?? 0),
+                    presmv: presm ?? null,  // id en presupuestos_mamparas (ej: M00089)
+                  };
+
+                  // Si ya existe un ítem de mampara, actualizarlo; si no, agregarlo
+                  setPresupuestoItems(prev => {
+                    const idx = prev.findIndex(it => it.seccion === "Mampara");
+                    if (idx >= 0) {
+                      const updated = [...prev];
+                      updated[idx] = { ...updated[idx], ...nuevoItem, id: updated[idx].id };
+                      return updated;
+                    }
+                    return [...prev, nuevoItem];
                   });
                 }}
               />
@@ -5166,6 +5229,26 @@ export default function PresupuestoNuevo({
             vanitoryVista === "presupuesto" && (
               <PresupuestoVanitory
                 modelo={vanitoryModelo}
+                numeroPres={numeroPres}
+                cliente={cliente}
+                codcliente={codcliente}
+                revision={revision}
+                onGuardado={(data) => {
+                  if (!data) return;
+                  const vtablaId = data.vtabla ?? data.id ?? null;
+                  agregarAPresupuesto({
+                    id: `vanitory-${vtablaId ?? Date.now()}`,
+                    seccion: "Vanitory",
+                    descripcion: `Vanitory ${data.vmodelo ?? "Personalizado"}`,
+                    nombreart: `${data.vmodelo ?? ""} ${data.vancho}x${data.valto}x${data.vprofundidad}cm`,
+                    cantidad: Number(data.cantidad ?? 1),
+                    precio: Number(data.vprecio ?? 0),
+                    subtotal: Number(data.vprecio ?? 0),
+                    // Vinculación: vtabla = id del registro en presupuesto_vanitory
+                    tabla: "V",
+                    vtabla: vtablaId != null ? Number(vtablaId) : null,
+                  });
+                }}
                 onVolver={() => {
                   setVanitoryVista("tipos");
                   setVanitoryModelo(null);
@@ -5348,6 +5431,11 @@ export default function PresupuestoNuevo({
                   style={{ fontSize: 13, fontWeight: 700, color: "#0a3a5c" }}
                 >
                   {cliente || "Consumidor final"}
+                  {codcliente && (
+                    <span style={{ fontSize: 11, color: "#666", marginLeft: 6 }}>
+                      (Cód: {codcliente})
+                    </span>
+                  )}
                 </span>
                 {telefono1 && (
                   <span style={{ fontSize: 11, color: "#4a6a8c" }}>
@@ -5743,6 +5831,11 @@ export default function PresupuestoNuevo({
                                   }}
                                 >
                                   {item.descripcion}
+                                  {item.seccion === "Mampara" && (
+                                    <span style={{ marginLeft: 8, fontSize: 10, color: presmv != null ? "#2277bb" : "#c0392b", fontFamily: "monospace" }}>
+                                      presmv: {presmv ?? "null"}
+                                    </span>
+                                  )}
                                 </td>
                                 <td
                                   style={{
@@ -5847,6 +5940,31 @@ export default function PresupuestoNuevo({
                                     textAlign: "center",
                                   }}
                                 >
+                                  {item.seccion === "Mampara" && presmv != null && (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          const res = await fetch(`${API}/presupuestos-mamparas/${presmv}`);
+                                          const data = await res.json();
+                                          setMamparaAEditar(data);
+                                          setTab("mampara");
+                                        } catch {
+                                          alert("No se pudo cargar la mampara");
+                                        }
+                                      }}
+                                      title="Editar mampara"
+                                      style={{
+                                        background: "none",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        fontSize: 14,
+                                        color: "#2277bb",
+                                        marginRight: 4,
+                                      }}
+                                    >
+                                      ✏️
+                                    </button>
+                                  )}
                                   <button
                                     onClick={() => quitarDePresupuesto(item.id)}
                                     title="Quitar"

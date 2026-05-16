@@ -292,8 +292,8 @@ export default function TiposVanitory({
     <>
       <ScreenHeader
         icon="🛁"
-        title="Tipos de Vanitory"
-        subtitle="Gestión de tipos de vanitory"
+        title="Tipos Vanitory"
+        subtitle="Gestión de tipos vanitory"
       />
 
       <div

@@ -189,6 +189,10 @@ app.get("/productos/count", (req, res) => {
     sql += " AND articulo LIKE ?";
     params.push(`%${search}%`);
   }
+  if (articulo) {
+    sql += " AND UPPER(articulo) LIKE ?";
+    params.push(`%${articulo.toUpperCase()}%`);
+  }
   if (familia) {
     sql += " AND familia = ?";
     params.push(familia);
@@ -204,13 +208,17 @@ app.get("/productos/count", (req, res) => {
 });
 
 app.get("/productos", (req, res) => {
-  const { page, limit, search, familia, rubro } = req.query;
+  const { page, limit, search, familia, rubro, area, articulo } = req.query;
   let sql = "SELECT * FROM articulos WHERE 1=1";
   let params = [];
 
   if (search) {
     sql += " AND articulo LIKE ?";
     params.push(`%${search}%`);
+  }
+  if (articulo) {
+    sql += " AND UPPER(articulo) LIKE ?";
+    params.push(`%${articulo.toUpperCase()}%`);
   }
   if (familia) {
     sql += " AND familia = ?";
@@ -219,6 +227,10 @@ app.get("/productos", (req, res) => {
   if (rubro) {
     sql += " AND rubro = ?";
     params.push(rubro);
+  }
+  if (area) {
+    sql += " AND area = ?";
+    params.push(parseInt(area));
   }
 
   sql += " ORDER BY articulo";
@@ -598,6 +610,25 @@ app.delete("/margen/:id", (req, res) => {
 // ───────────────────────────────────────────
 // VANITORY TIPOS
 // ───────────────────────────────────────────
+// Buscar artículos por nombre (para el selector en TiposVanitory)
+app.get("/vanitory-tipos/buscar-articulo", (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) return res.json([]);
+  const like = `%${q.trim()}%`;
+  db.query(
+    `SELECT id, codartint, articulo, rubro, artfoto
+     FROM articulos
+     WHERE articulo LIKE ?
+     ORDER BY articulo
+     LIMIT 20`,
+    [like],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    }
+  );
+});
+
 app.get("/vanitory-tipos", (req, res) => {
   db.query("SELECT * FROM vanitory_tipos ORDER BY id", (err, r) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -664,6 +695,25 @@ app.delete("/vanitory-tipos/:id", (req, res) => {
 // ───────────────────────────────────────────
 // ESCRITORIO TIPOS
 // ───────────────────────────────────────────
+// Buscar artículos por nombre (para el selector en TiposEscritorio)
+app.get("/escritorio-tipos/buscar-articulo", (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) return res.json([]);
+  const like = `%${q.trim()}%`;
+  db.query(
+    `SELECT id, codartint, articulo, rubro, artfoto
+     FROM articulos
+     WHERE articulo LIKE ?
+     ORDER BY articulo
+     LIMIT 20`,
+    [like],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    }
+  );
+});
+
 app.get("/escritorio-tipos", (req, res) => {
   db.query("SELECT * FROM escritorio_tipos ORDER BY id", (err, r) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -1169,10 +1219,12 @@ app.get("/presupuestos-mamparas", (req, res) => {
     `SELECT p.*
      FROM PRESUPUESTOS_MAMPARAS p
      INNER JOIN (
-       SELECT COALESCE(NUMERO, id) AS num, MAX(REVISION) AS max_rev
+       SELECT COALESCE(presm, id) AS num, MAX(REVISION) AS max_rev
        FROM PRESUPUESTOS_MAMPARAS
-       GROUP BY COALESCE(NUMERO, id)
-     ) latest ON COALESCE(p.NUMERO, p.id) = latest.num AND p.REVISION = latest.max_rev
+       GROUP BY COALESCE(presm, id)
+     ) latest
+       ON COALESCE(p.presm, p.id) = latest.num
+      AND p.REVISION = latest.max_rev
      ORDER BY p.id DESC`,
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -1195,6 +1247,19 @@ app.get("/presupuestos-mamparas/proximo-numero", (req, res) => {
 });
 
 // GET todas las revisiones de un número de presupuesto
+app.get("/presupuestos-mamparas/:id", (req, res) => {
+  const { id } = req.params;
+  db.query(
+    "SELECT * FROM presupuestos_mamparas WHERE id = ? LIMIT 1",
+    [id],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!rows.length) return res.status(404).json({ error: "No encontrado" });
+      res.json(rows[0]);
+    }
+  );
+});
+
 app.get("/presupuestos-mamparas/:numero/revisiones", (req, res) => {
   const { numero } = req.params;
   db.query(
@@ -1211,72 +1276,76 @@ app.get("/presupuestos-mamparas/:numero/revisiones", (req, res) => {
 
 // POST — guarda un presupuesto (nuevo o nueva revisión de uno existente)
 //
-// Si el body trae NUMERO → es una revisión de un presupuesto ya guardado.
-//   Lee la revisión máxima actual para ese NUMERO y le suma 1.
-// Si no trae NUMERO → es nuevo. Inserta con REVISION=0.
-//   Después actualiza esa fila para setear NUMERO = id (el id auto asignado).
+// Si el body trae presm → es una revisión de un presupuesto ya guardado.
+//   Lee la revisión máxima actual para ese presm y le suma 1.
+// Si no trae presm → es nuevo. Inserta con REVISION=0.
+//   Después actualiza esa fila para setear presm = id (el id auto asignado).
+// Columnas reales de presupuestos_mamparas
+const MAMPARAS_COLS_UPPER = new Set([
+  'CODCLIENTE','NUMEROPRES','PRESM','FECHA','CANTIDAD','MODELO',
+  'ANCHO','ALTO','VIDRIO','COLOCACION','PRECIO','REVISION',
+  'ART1','VALOR1','MARGEN1','ART2','VALOR2','MARGEN2',
+  'ART3','VALOR3','MARGEN3','ART4','VALOR4','MARGEN4',
+  'ART5','VALOR5','MARGEN5','ART6','VALOR6','MARGEN6',
+  'ART7','VALOR7','MARGEN7','ART8','VALOR8','MARGEN8',
+  'ART9','VALOR9','MARGEN9','ART10','VALOR10','MARGEN10',
+]);
+
 app.post("/presupuestos-mamparas", (req, res) => {
-  const { NUMERO, REVISION: _rev, ...fields } = req.body;
+  const { REVISION: _rev, ...fields } = req.body;
   const artValores = extractArtValores(req.body);
 
-  if (NUMERO) {
-    // ── Revisión de presupuesto existente ──────────────────────────────────
+  const rawItem = {
+    ...fields,
+    ...artValores,
+    REVISION: req.body.REVISION != null ? Number(req.body.REVISION) : 0,
+    FECHA: fields.FECHA ?? new Date().toISOString().slice(0, 10),
+  };
+
+  // Filtrar solo columnas reales de la tabla y normalizar claves a minúscula
+  // (MySQL en Linux es case-sensitive en nombres de columna)
+  const item = Object.fromEntries(
+    Object.entries(rawItem)
+      .filter(([k]) => MAMPARAS_COLS_UPPER.has(k.toUpperCase()))
+      .filter(([, v]) => v !== null && v !== undefined && v !== '')
+      .map(([k, v]) => [k.toLowerCase(), v])
+  );
+
+  console.log('INSERT presupuesto-mampara keys:', Object.keys(item));
+
+  db.query("INSERT INTO presupuestos_mamparas SET ?", item, (err, result) => {
+    if (err) {
+      console.error("Error INSERT presupuestos_mamparas:", err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    const newId = result.insertId;
+    console.log('INSERT OK, newId:', newId);
+
+    // Leer presm generado por el trigger de la BD
     db.query(
-      "SELECT COALESCE(MAX(REVISION), 0) AS max_rev FROM PRESUPUESTOS_MAMPARAS WHERE COALESCE(NUMERO, id) = ?",
-      [NUMERO],
-      (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        const nuevaRevision = Number(rows[0].max_rev) + 1;
-        const item = {
-          ...fields,
-          ...artValores,
-          NUMERO: Number(NUMERO),
-          REVISION: nuevaRevision,
-          FECHA: fields.FECHA ?? new Date().toISOString().slice(0, 10),
-        };
-        db.query(
-          "INSERT INTO PRESUPUESTOS_MAMPARAS SET ?",
-          item,
-          (err2, result) => {
-            if (err2) return res.status(500).json({ error: err2.message });
-            res.json({ id: result.insertId, ...item });
-          },
-        );
-      },
+      "SELECT presm FROM presupuestos_mamparas WHERE id = ?",
+      [newId],
+      (err2, rows) => {
+        if (err2) console.error("Error leyendo presm:", err2.message);
+        const presmVal = (!err2 && rows.length > 0) ? rows[0].presm : null;
+        res.json({ id: newId, presm: presmVal ?? newId, ...item }); // presm fallback a newId
+      }
     );
-  } else {
-    // ── Presupuesto nuevo ──────────────────────────────────────────────────
-    const item = {
-      ...fields,
-      ...artValores,
-      REVISION: 0,
-      FECHA: fields.FECHA ?? new Date().toISOString().slice(0, 10),
-    };
-    db.query("INSERT INTO PRESUPUESTOS_MAMPARAS SET ?", item, (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      const newId = result.insertId;
-      // Esperar el UPDATE antes de responder — si se responde antes, el siguiente
-      // llamado a proximo-numero puede leer la fila sin NUMERO y calcular mal
-      db.query(
-        "UPDATE PRESUPUESTOS_MAMPARAS SET NUMERO = ? WHERE id = ?",
-        [newId, newId],
-        (err2) => {
-          if (err2) return res.status(500).json({ error: err2.message });
-          res.json({ id: newId, NUMERO: newId, ...item });
-        },
-      );
-    });
-  }
+  });
 });
 
 // PUT — actualiza un registro existente por id (edición directa, sin revisión)
 app.put("/presupuestos-mamparas/:id", (req, res) => {
   const { id } = req.params;
-  const { id: _id, ...fields } = req.body;
+  const { id: _id, presm: _presm, ...fields } = req.body;
   const artValores = extractArtValores(req.body);
-  const item = { ...fields, ...artValores };
+  const item = Object.fromEntries(
+    Object.entries({ ...fields, ...artValores })
+      .filter(([, v]) => v !== null && v !== undefined && v !== '')
+      .map(([k, v]) => [k.toLowerCase(), v])
+  );
   db.query(
-    "UPDATE PRESUPUESTOS_MAMPARAS SET ? WHERE id = ?",
+    "UPDATE presupuestos_mamparas SET ? WHERE id = ?",
     [item, id],
     (err) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -1290,7 +1359,7 @@ app.delete("/presupuestos-mamparas/:id", (req, res) => {
   const { id } = req.params;
   // Elimina todas las revisiones que tengan ese NUMERO o ese id
   db.query(
-    "DELETE FROM PRESUPUESTOS_MAMPARAS WHERE COALESCE(NUMERO, id) = ?",
+    "DELETE FROM presupuestos_mamparas WHERE COALESCE(NUMERO, id) = ?",
     [id],
     (err) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -1446,6 +1515,21 @@ app.post("/presupuestos-vanitory", (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ id: result.insertId, ...item });
   });
+});
+
+// POST — vincula presupuestos de vanitory huérfanos con el presupuesto principal
+app.post("/presupuestos-vanitory/vincular", (req, res) => {
+  const { numeropres, ids } = req.body;
+  if (!numeropres || !Array.isArray(ids) || ids.length === 0)
+    return res.status(400).json({ error: "Faltan numeropres o ids" });
+  db.query(
+    "UPDATE presupuestos_vanitory SET numeropres = ? WHERE id IN (?)",
+    [numeropres, ids],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ ok: true, numeropres, ids });
+    },
+  );
 });
 
 app.put("/presupuestos-vanitory/:id", (req, res) => {
@@ -1765,21 +1849,25 @@ app.get("/tabla-indice/:numeropres", (req, res) => {
 app.post("/tabla-presupuestos", (req, res) => {
   const {
     items,
-    numero: numEntrada, // presente solo en revisiones
-    NUMERO: numEntradaMay, // compatibilidad legacy
-    revision: _rev, // ignorado, lo calculamos nosotros
-    REVISION: _revMay, // compatibilidad legacy
-    id: _id, // ignorado
+    numero: numEntrada,
+    NUMERO: numEntradaMay,
+    revision: _rev,
+    REVISION: _revMay,
+    id: _id,
     nombre: nombreMin,
     NOMBRE: nombreMay,
     fecha: fechaMin,
     FECHA: fechaMay,
     lista,
     lineasElegidas,
+    codcliente: codclienteMin,
+    CODCLIENTE: codclienteMay,
+    presmv: presmvPayload,
   } = req.body;
 
   const numFinal = numEntrada ?? numEntradaMay ?? null;
   const nombreCliente = (nombreMin ?? nombreMay ?? "").trim() || null;
+  const codclienteVal = codclienteMin ?? codclienteMay ?? null;
   const listaGuardar = lista ?? null;
   const lineasArr = Array.isArray(lineasElegidas) ? lineasElegidas : [];
 
@@ -1866,6 +1954,8 @@ app.post("/tabla-presupuestos", (req, res) => {
 
   // ── Pasos 2-4: borrar items anteriores e insertar los nuevos ────────────
   guardarIndice((numeroPres, revision) => {
+    console.log("[tabla-presupuestos] presmvPayload recibido:", presmvPayload, "| numeroPres:", numeroPres);
+  console.log("[tabla-presupuestos] items recibidos:", JSON.stringify((items ?? []).map(it => ({ seccion: it.seccion, presmv: it.presmv }))), "| total:", (items ?? []).length);
     if (filas.length === 0) {
       return res.json({ numero: numeroPres, revision, insertados: 0 });
     }
@@ -1878,29 +1968,31 @@ app.post("/tabla-presupuestos", (req, res) => {
     filas.forEach((it) => {
       const filaItem = {
         numeropres: numeroPres,
-        nombre: nombreCliente,
+        codcliente: codclienteVal != null ? Number(codclienteVal) : null,
         articulo: it.descripcion ?? it.articulo ?? null,
         nombreart: it.nombreart ?? it.nombrart ?? null,
         tipo: it.seccion ?? it.tipo ?? null,
         cantidad: parseFloat(it.cantidad) || 1,
         revision: Number(revision),
-        // Línea 1
+        ancho: it.ancho != null ? Number(it.ancho) : null,
+        alto:  it.alto  != null ? Number(it.alto)  : null,
+        fecha: new Date().toISOString().slice(0, 10),  // fecha actual YYYY-MM-DD
+        presmv: it.presmv ?? presmvPayload ?? null,
         linea1: lineasArr[0] ?? null,
-        valor1:
-          parseFloat(it.precios?.[0]?.precio ?? it.valor1 ?? it.precio) || null,
-        margen1: it.porcentaje1 ?? null,
-        // Línea 2
+        valor1: parseFloat(it.precios?.[0]?.precio ?? it.valor1 ?? it.precio) || null,
+        porcentaje1: it.porcentaje1 ?? it.margen1 ?? null,
         linea2: lineasArr[1] ?? null,
         valor2: parseFloat(it.precios?.[1]?.precio ?? it.valor2) || null,
-        margen2: it.porcentaje2 ?? null,
-        // Línea 3
+        porcentaje2: it.porcentaje2 ?? it.margen2 ?? null,
         linea3: lineasArr[2] ?? null,
         valor3: parseFloat(it.precios?.[2]?.precio ?? it.valor3) || null,
-        margen3: it.porcentaje3 ?? null,
+        porcentaje3: it.porcentaje3 ?? it.margen3 ?? null,
       };
 
+      // Proteger codcliente y presmv: conservarlos aunque sean null
+      const camposProtegidos = new Set(["codcliente", "presmv"]);
       Object.keys(filaItem).forEach((k) => {
-        if (filaItem[k] === null) delete filaItem[k];
+        if (filaItem[k] === null && !camposProtegidos.has(k)) delete filaItem[k];
       });
 
       db.query("INSERT INTO tabla_presupuestos SET ?", filaItem, (err2) => {
@@ -1911,6 +2003,17 @@ app.post("/tabla-presupuestos", (req, res) => {
             err2.message,
             "| fila:",
             JSON.stringify(filaItem),
+          );
+        }
+        // Si el item es mampara, actualizar numeropres en presupuestos_mamparas
+        const presmvVal = filaItem.presmv;
+        if (!err2 && presmvVal) {
+          db.query(
+            "UPDATE presupuestos_mamparas SET numeropres = ? WHERE presm = ?",
+            [numeroPres, presmvVal],
+            (errUpd) => {
+              if (errUpd) console.error("Error UPDATE presupuestos_mamparas numeropres:", errUpd.message);
+            }
           );
         }
         pendientes--;

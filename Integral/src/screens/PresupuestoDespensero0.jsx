@@ -307,25 +307,15 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
     });
 
     Promise.all([
-      // Materiales: todos los artículos con area = 2
+      // Materiales: todos los artículos con area = 1
       fetch(`${API}/productos?area=2`)
         .then(r => r.json())
         .then(data => (Array.isArray(data) ? data : []).map(normalizar))
         .catch(() => []),
-      // Bisagras
-      fetch(`${API}/productos?articulo=BISAGRA`)
-        .then(r => r.json())
-        .then(data => (Array.isArray(data) ? data : []).map(normalizar))
-        .catch(() => []),
-      // Correderas / guías telescópicas
-      fetch(`${API}/productos?articulo=GUIA%20TELESCOPICA`)
-        .then(r => r.json())
-        .then(data => (Array.isArray(data) ? data : []).map(normalizar))
-        .catch(() => []),
-    ]).then(([mats, bis, her]) => {
+    ]).then(([mats]) => {
       setInsumosMuebles(mats);
-      setBisagras(bis);
-      setHerrajes(her);
+      setBisagras([]);
+      setHerrajes([]);
       // Precargar material blanco con PMDFBL18
       const blanco = mats.find(p => (p.codart ?? p.codartint ?? "").toUpperCase() === "PMDFBL18");
       if (blanco) {

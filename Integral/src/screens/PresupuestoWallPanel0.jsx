@@ -52,7 +52,7 @@ export default function PresupuestoWallPanel({ onVolver }) {
     };
 
     Promise.all([
-      fetch(`${API}/productos?area=2`).then(r => r.json()).catch(() => []),
+      fetch(`${API}/productos/wall-panel`).then(r => r.json()).catch(() => []),
       fetch(`${API}/asociaciones-form`).then(r => r.json()).catch(() => []),
     ]).then(async ([mats, asocs]) => {
       setMateriales((Array.isArray(mats) ? mats : []).map(normalizar));

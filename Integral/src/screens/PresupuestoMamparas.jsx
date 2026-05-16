@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-export default function PresupuestoMamparas({ presupuestoACargar = null, onCargado, onGuardado, clienteInicial = "" }) {
+export default function PresupuestoMamparas({ presupuestoACargar = null, onCargado, onGuardado, clienteInicial = "", codclienteInicial = null, numeroPres = null }) {
   const [presupuestoId, setPresupuestoId] = useState(null); // número entero, null = sin asignar
   const [revision, setRevision]           = useState(0);
   const [articuloSeleccionado, setArticuloSeleccionado] = useState(null);
@@ -34,6 +34,7 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
   // ── Form ────────────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
     cliente:   clienteInicial,
+    codcliente: codclienteInicial,
     cantidad:  1,
     ancho:     80,
     alto:      200,
@@ -47,17 +48,21 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
   useEffect(() => {
     if (!presupuestoACargar) return;
 
-    const p = presupuestoACargar;
+    // Normalizar claves a mayúscula para unificar datos de BD (minúscula) y del estado (mayúscula)
+    const p = Object.fromEntries(
+      Object.entries(presupuestoACargar).map(([k, v]) => [k.toUpperCase(), v])
+    );
 
     // Número de presupuesto y revisión
-    setPresupuestoId(p.NUMERO ? Number(p.NUMERO) : Number(p.id ?? 0));
+    setPresupuestoId(p.PRESM ? Number(p.PRESM) : p.NUMERO ? Number(p.NUMERO) : Number(p.ID ?? 0));
     setRevision(Number(p.REVISION ?? 0));
     setModoEdicion(true);
-    setPresupuestoDbId(p.id ?? null);
+    setPresupuestoDbId(presupuestoACargar.id ?? null);
 
     // Datos del form
     setForm({
       cliente:    p.NOMBRE   ?? "",
+      codcliente: p.CODCLIENTE ?? null,
       cantidad:   Number(p.CANTIDAD  ?? 1),
       ancho:      Number(p.ANCHO     ?? 80),
       alto:       Number(p.ALTO      ?? 200),
@@ -72,8 +77,8 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
     // Reconstituir artículos asociados desde art1..art10 y valor1..valor10
     const slotsGuardados = [];
     for (let n = 1; n <= 10; n++) {
-      const art   = p[`art${n}`];
-      const valor = p[`valor${n}`];
+      const art   = p[`ART${n}`];
+      const valor = p[`VALOR${n}`];
       if (!art) continue;
       slotsGuardados.push({
         slot:          n,
@@ -103,6 +108,7 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
         if (!Array.isArray(data)) return;
         const normalized = data.map(a => ({
           ...a,
+          codart: a.codart ?? a.codartint ?? "",
           familia: (a.familia && a.familia.trim()) ? a.familia.trim() : (a.rubro ?? ""),
         }));
         setArticulos(normalized);
@@ -391,7 +397,8 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
     const nuevaRevision = modoEdicion ? revision + 1 : 0;
 
     const payload = {
-      NOMBRE:     form.cliente,
+      NOMBRE:     form.cliente ?? "",
+      CODCLIENTE: form.codcliente ?? null,
       FECHA:      new Date().toISOString().slice(0, 10),
       CANTIDAD:   Number(form.cantidad),
       MODELO:     modelo,
@@ -401,7 +408,9 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
       COLOCACION: Number(form.colocacion),
       PRECIO:     Number(total),
       REVISION:   nuevaRevision,
-      // NUMERO como entero: si es edición manda el número actual, si es nuevo no manda nada
+      // Vinculación con el presupuesto principal de tabla_presupuestos
+      NUMEROPRES: numeroPres ?? null,
+      // NUMERO como entero: si es revisión manda el número actual para agrupar revisiones
       ...(modoEdicion && presupuestoId != null ? { NUMERO: Number(presupuestoId) } : {}),
       ...artValores,
     };
@@ -424,32 +433,26 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
       setPresupuestoDbId(data.id ?? null);
 
       // Siempre actualizar el número desde la respuesta del servidor
-      const numeroAsignado = data.NUMERO ?? data.id;
+      const numeroAsignado = data.presm ?? data.NUMERO ?? data.id;
       if (numeroAsignado != null) {
         setPresupuestoId(Number(numeroAsignado));
       } else if (eraPresupuestoNuevo) {
         fetchProximoNumero();
       }
 
-      onGuardado?.(data);   // avisar al padre para refrescar la lista
-
-      // ── También guardar en tabla_presupuestos ──────────────────
-      const filaTabla = {
-        numeropres: Number(data.NUMERO ?? data.id),
-        articulo:   modelo,
-        tipo:       form.vidrio,
-        ancho:      Number(form.ancho),
-        alto:       Number(form.alto),
-        profundidad: 0,
-        margen:     asociados[0]?.margen ?? 1,
-        valor:      Number(total),
-        revision:   nuevaRevision,
-      };
-      fetch("http://localhost:3001/tabla-presupuestos", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(filaTabla),
-      }).catch(() => {}); // silencioso — no bloquea el flujo principal
+      // Devolver al padre todos los datos necesarios para el ítem del presupuesto.
+      // PresupuestoNuevo tomará data.presm y lo asignará a presmv.
+      // Los datos del presupuesto se enviarán a tabla_presupuestos al guardar el presupuesto principal.
+      onGuardado?.({
+        ...data,
+        MODELO:     modelo,
+        PRECIO:     Number(total),
+        CANTIDAD:   Number(form.cantidad),
+        ANCHO:      Number(form.ancho),
+        ALTO:       Number(form.alto),
+        VIDRIO:     form.vidrio,
+        COLOCACION: Number(form.colocacion),
+      });
 
       setTimeout(() => setGuardadoOk(false), 3000);
     } catch (err) {

@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from "react";
 
 const API = "http://localhost:3001";
 
-export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
+export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver, numeroPres, cliente, revision, onGuardado }) {
   const modelo = modeloRaw
-    ? { ...modeloRaw, codart: modeloRaw.codartint ?? modeloRaw.CODARTINT ?? modeloRaw.codart ?? modeloRaw.codtipdes ?? null }
+    ? { ...modeloRaw, codart: modeloRaw.codartint ?? modeloRaw.CODARTINT ?? modeloRaw.codart ?? modeloRaw.codtipvan ?? null }
     : null;
   const [presupuestoId, setPresupuestoId] = useState("");
 
@@ -63,7 +63,7 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
   const [bisagras, setBisagras] = useState([]);
   // Próximo número de presupuesto
   useEffect(() => {
-    fetch(`${API}/presupuestos-despensero/proximo-numero`)
+    fetch(`${API}/presupuestos-vanitory/proximo-numero`)
       .then(r => r.json())
       .then(d => { const n = d?.proximo ?? null; if (n != null) setPresupuestoId(String(n).padStart(4, "0")); })
       .catch(() => setPresupuestoId("0001"));
@@ -89,7 +89,7 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
   // Cargar margen desde BD cuando hay modelo con codart
   useEffect(() => {
     if (!modelo?.codart) return;
-    console.log("[Despensero] Buscando margen para codart:", modelo.codart);
+    console.log("[Vanitory] Buscando margen para codart:", modelo.codart);
 
     const parseMargenRow = (row) => {
       if (!row) return null;
@@ -107,23 +107,23 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
     fetch(`${API}/margen/por-codart?codart=${encodeURIComponent(modelo.codart)}`)
       .then(r => r.json())
       .then(async d => {
-        console.log("[Despensero] Margen BD raw:", d);
+        console.log("[Vanitory] Margen BD raw:", d);
         let row = Array.isArray(d) ? d[0] : d;
 
         if (!row) { setMargenBD(null); return; }
         const raw = parseMargenRow(row);
-        console.log("[Despensero] Margen raw value:", raw, "| row keys:", Object.keys(row));
+        console.log("[Vanitory] Margen raw value:", raw, "| row keys:", Object.keys(row));
         if (raw === null) { setMargenBD(null); return; }
         // BD guarda multiplicador: 1.30 = 30%, 1.50 = 50%
         // Si raw <= 10 es multiplicador; si > 10 ya es porcentaje directo
         const margen = raw > 10
           ? Math.round(raw * 100) / 100
           : Math.round((raw - 1) * 10000) / 100;
-        console.log("[Despensero] Margen calculado:", margen, "% (raw BD:", raw, ")");
+        console.log("[Vanitory] Margen calculado:", margen, "% (raw BD:", raw, ")");
         setMargenBD(margen);
         setForm(prev => ({ ...prev, margen }));
       })
-      .catch(err => { console.error("[Despensero] Error cargando margen:", err); setMargenBD(null); });
+      .catch(err => { console.error("[Vanitory] Error cargando margen:", err); setMargenBD(null); });
   }, [modelo?.codart]);
   // ── Cargar y evaluar fórmulas al elegir artículo o cambiar dimensiones ──────
   // Flujo: asociaciones_form → codf1..10 + form1..10 (expresiones crudas)
@@ -307,18 +307,15 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
     });
 
     Promise.all([
-      // Materiales: todos los artículos con area = 2
-      fetch(`${API}/productos?area=2`)
+      // Placas: articulo LIKE %PLACA% AND proveedor != DANIEL ROQUE SRL
+      fetch(`${API}/productos/placas-vanitory`)
         .then(r => r.json())
         .then(data => (Array.isArray(data) ? data : []).map(normalizar))
         .catch(() => []),
-      // Bisagras
-      fetch(`${API}/productos?articulo=BISAGRA`)
-        .then(r => r.json())
-        .then(data => (Array.isArray(data) ? data : []).map(normalizar))
-        .catch(() => []),
-      // Correderas / guías telescópicas
-      fetch(`${API}/productos?articulo=GUIA%20TELESCOPICA`)
+      // Guías: articulo LIKE %GUIAS TELESCOPICAS%
+      fetch(`${API}/productos/bisagras-vanitory`)
+        .then(r => r.json()).then(d => Array.isArray(d) ? d : []).catch(() => []),
+      fetch(`${API}/productos/guias-vanitory`)
         .then(r => r.json())
         .then(data => (Array.isArray(data) ? data : []).map(normalizar))
         .catch(() => []),
@@ -344,8 +341,8 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
           materialPrecio: parseFloat(color.precio_un ?? color.precio) || 0,
         }));
       }
-      console.log("[Despensero] Placas:", mats.length, "| Guías:", her.length);
-      if (mats.length > 0) console.log("[Despensero] Ejemplo placa:", mats[0]);
+      console.log("[Vanitory] Placas:", mats.length, "| Guías:", her.length);
+      if (mats.length > 0) console.log("[Vanitory] Ejemplo placa:", mats[0]);
     }).finally(() => setCargandoInsumos(false));
   }, []);
 
@@ -415,60 +412,40 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
     setGuardadoOk(false);
 
     const payload = {
-      NOMBRE:             form.cliente,
-      FECHA:              new Date().toISOString().slice(0, 10),
-      CANTIDAD:           Number(form.cantidad),
-      MODELO:             modelo?.nombre ?? "Personalizado",
-      ANCHO:              Number(form.ancho),
-      ALTO:               Number(form.alto),
-      PROFUNDO:           Number(form.profundo),
-      COLOCACION:         Number(form.colocacion),
-      MATERIAL:           form.material || null,
-      MATERIAL_PRECIO:    Number(form.materialPrecio) || 0,
-      CORREDERA:          form.corredera || null,
-      CORREDERA_PRECIO:   Number(form.correderaPrecio) || 0,
-      CORREDERA_CANTIDAD: Number(form.correderaCantidad) || 1,
-      MARGEN:             Number(form.margen) || 0,
-      PRECIO:             Number(total),
-      REVISION:           0,
+      numeropres:   numeroPres ?? null,
+      fecha:        new Date().toISOString().slice(0, 10),
+      cantidad:     Number(form.cantidad),
+      vmodelo:      modelo?.nombre ?? "Personalizado",
+      vancho:       Number(form.ancho),
+      valto:        Number(form.alto),
+      vprofundidad: Number(form.profundo),
+      vmaterial_cl: form.material || null,
+      vmaterial_bl: form.materialBlanco || null,
+      vcorrederas:  Number(form.correderaPrecio) || 0,
+      vbisagra:     form.corredera || null,
+      vlatder:      Number(form.colocacion) || 0,
+      vlatizq:      1,
+      vbase:        0,
+      techo:        null,
+      vprecio:      Number(total),
+      vrevision:    0,
     };
 
     try {
-      const res = await fetch(`${API}/presupuestos-despensero`, {
+      const res = await fetch(`${API}/presupuestos-vanitory`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al guardar");
+
       setGuardadoOk(true);
-      fetch(`${API}/presupuestos-despensero/proximo-numero`)
+      if (onGuardado) onGuardado({ ...payload, id: data.id });
+      fetch(`${API}/presupuestos-vanitory/proximo-numero`)
         .then(r => r.json())
         .then(d => { const n = d?.proximo ?? null; if (n != null) setPresupuestoId(String(n).padStart(4, "0")); })
         .catch(() => {});
-
-      // ── También guardar en tabla_presupuestos (igual que mamparas) ──
-      const filaTabla = {
-        nombre: form.cliente,
-        fecha:  new Date().toISOString().slice(0, 10),
-        items: [
-          {
-            descripcion: modelo?.nombre ?? modelo?.codtipdes ?? "Despensero",
-            nombreart:   modelo?.descripcion ?? "",
-            seccion:     "Despensero",
-            cantidad:    Number(form.cantidad),
-            precio:      Number(total),
-            margen:      Number(form.margen) || 0,
-          },
-        ],
-        ...(data.NUMERO != null ? { numero: Number(data.NUMERO ?? data.id) } : {}),
-      };
-      fetch(`${API}/tabla-presupuestos`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(filaTabla),
-      }).catch(() => {}); // silencioso — no bloquea el flujo principal
-
       setTimeout(() => setGuardadoOk(false), 3000);
     } catch (err) {
       setErrorCalc(err.message);
@@ -485,7 +462,7 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
 <html lang="es">
 <head>
   <meta charset="UTF-8"/>
-  <title>Presupuesto Despensero N° ${nro}</title>
+  <title>Presupuesto Vanitory N° ${nro}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Source+Sans+3:wght@300;400;600;700&display=swap');
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -518,7 +495,7 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
 <div class="page">
   <div class="header">
     <div>
-      <div class="company-name">🗄️ Despenseros & Muebles</div>
+      <div class="company-name">🛁 Vanitorys & Muebles</div>
       <div style="font-size:11px; color:#7ab2d4; margin-top:6px;">Bahía Blanca, Buenos Aires · 291-000-0000</div>
     </div>
     <div class="header-right">
@@ -554,7 +531,7 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
     </div>
   </div>
   <div class="footer">
-    <div><div class="footer-brand">Despenseros & Muebles</div>Bahía Blanca, Buenos Aires · 291-000-0000</div>
+    <div><div class="footer-brand">Vanitorys & Muebles</div>Bahía Blanca, Buenos Aires · 291-000-0000</div>
     <div style="text-align:right;font-size:11px;color:#6a8aa0">Presupuesto N° ${nro}<br/>Emitido el ${fecha}</div>
   </div>
 </div>
@@ -644,7 +621,7 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
 
               {/* Header */}
               <div className="presup-badge">
-                <span className="presup-badge-title">🗄️ Presupuesto Despensero</span>
+                <span className="presup-badge-title">🛁 Presupuesto Vanitory</span>
                 <span className="presup-badge-num">
                   {presupuestoId ? `N° ${presupuestoId}` : "N° —"}
                 </span>
@@ -1119,12 +1096,12 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
 
           {/* Panel foto del modelo */}
           <div className="foto-panel">
-            <div className="foto-panel-title">🗄️ Modelo seleccionado</div>
+            <div className="foto-panel-title">🛁 Modelo seleccionado</div>
             {modelo?.foto && modelo.foto !== "null" ? (
               <img className="foto-panel-img" src={modelo.foto} alt={modelo.nombre} />
             ) : (
               <div className="foto-panel-empty">
-                <span style={{fontSize:48}}>🗄️</span>
+                <span style={{fontSize:48}}>🛁</span>
                 <small style={{marginTop:8}}>{modelo?.custom ? "Personalizado" : "Sin imagen"}</small>
               </div>
             )}
@@ -1134,10 +1111,10 @@ export default function PresupuestoDespensero({ modelo: modeloRaw, onVolver }) {
                   <span className="foto-info-label">Modelo</span>
                   <span className="foto-info-value">{modelo.nombre ?? "Personalizado"}</span>
                 </div>
-                {modelo.codtipdes && (
+                {modelo.codtipvan && (
                   <div className="foto-info-row">
                     <span className="foto-info-label">Código</span>
-                    <span className="foto-info-value">{modelo.codtipdes}</span>
+                    <span className="foto-info-value">{modelo.codtipvan}</span>
                   </div>
                 )}
                 {modelo.descripcion && (

@@ -10,9 +10,9 @@ const API = "http://localhost:3001";
 
 // COLUMNS se construye dinámicamente según los datos — ver buildColumns() dentro del componente
 const COLUMNS_BASE = [
-  { key: "NUMERO",     label: "N°"        },
+  { key: "presm",      label: "N°"        },
   { key: "REVISION",   label: "Rev."      },
-  { key: "NOMBRE",     label: "Cliente"   },
+  { key: "CODCLIENTE", label: "Cliente"   },
   { key: "FECHA",      label: "Fecha"     },
   { key: "MODELO",     label: "Modelo"    },
   { key: "CANTIDAD",   label: "Cant."     },
@@ -71,7 +71,7 @@ const applyRender = (col) => {
       </span>
     )};
   }
-  if (col.key === "NUMERO") {
+  if (col.key === "presm") {
     return { ...col, render: (v) => v ? String(v).padStart(4, "0") : "—" };
   }
   return col;
@@ -99,6 +99,8 @@ export default function PresupuestosMamparasTabla({
     }
     return {
       ...p,
+      presm:      p.presm      ?? p.PRESM      ?? p.id ?? "",
+      CODCLIENTE: p.CODCLIENTE ?? p.codcliente ?? "",
       NOMBRE:     p.NOMBRE     ?? p.nombre     ?? "",
       FECHA:      p.FECHA      ?? p.fecha      ?? "",
       CANTIDAD:   p.CANTIDAD   ?? p.cantidad   ?? "",
@@ -120,7 +122,7 @@ export default function PresupuestosMamparasTabla({
     return (
       (p.NOMBRE  ?? "").toLowerCase().includes(q) ||
       (p.MODELO  ?? "").toLowerCase().includes(q) ||
-      String(p.NUMERO ?? p.id ?? "").includes(q)
+      String(p.presm ?? p.id ?? "").includes(q)
     );
   });
 
@@ -181,7 +183,7 @@ export default function PresupuestosMamparasTabla({
     setLoadingRev(true);
     setModalHistorial(true);
     try {
-      const numeroParam = selected.NUMERO ?? selected.id;
+      const numeroParam = selected.presm ?? selected.id;
       const res = await fetch(`${API}/presupuestos-mamparas/${numeroParam}/revisiones`);
       const data = await res.json();
       setRevisiones(Array.isArray(data) ? data : []);
@@ -215,7 +217,7 @@ export default function PresupuestosMamparasTabla({
     };
     // En edición se pasa NUMERO para que el servidor cree una nueva revisión (POST).
     // En nuevo no se pasa NUMERO y el servidor lo asigna automáticamente.
-    onSave(modal === "nuevo" ? payload : { ...payload, NUMERO: selected.NUMERO ?? selected.id });
+    onSave(modal === "nuevo" ? payload : { ...payload, presm: selected.presm ?? selected.id });
     onCloseModal();
     setForm(EMPTY);
     setPrecioCalc(null);
@@ -359,7 +361,7 @@ export default function PresupuestosMamparasTabla({
         <Modal
           title={modal === "nuevo"
             ? "Nuevo presupuesto"
-            : `Editar presupuesto N° ${String(selected?.NUMERO ?? selected?.id ?? "").padStart(4, "0")} — guardará nueva revisión`}
+            : `Editar presupuesto N° ${String(selected?.presm ?? selected?.id ?? "").padStart(4, "0")} — guardará nueva revisión`}
           onClose={onCloseModal}
         >
           {error && <p className="form-error">{error}</p>}
@@ -537,7 +539,7 @@ export default function PresupuestosMamparasTabla({
         }
         return (
           <Modal
-            title={`Historial de revisiones — N° ${String(selected?.NUMERO ?? selected?.id ?? "").padStart(4, "0")} · ${selected?.NOMBRE ?? ""}`}
+            title={`Historial de revisiones — N° ${String(selected?.presm ?? selected?.id ?? "").padStart(4, "0")} · ${selected?.NOMBRE ?? ""}`}
             onClose={() => setModalHistorial(false)}
           >
             {loadingRev ? (
