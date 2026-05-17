@@ -1108,6 +1108,12 @@ export default function PresupuestoNuevo({
             console.log("[cargar] mampara encontrada, pmv:", pmv);
             if (pmv != null) setPresmv(Number(pmv));
           }
+          // Si es vanitory, restaurar presv desde presmv guardado en BD
+          const esVanitory = seccion.toLowerCase() === "vanitory";
+          const presvRestaurado = esVanitory ? (it.presmv ?? it.PRESMV ?? null) : null;
+          if (esVanitory && presvRestaurado) {
+            console.log("[cargar] vanitory encontrado, presv restaurado:", presvRestaurado);
+          }
           otrosItems.push({
             id: `otros-${it.id}`,
             seccion,
@@ -1124,6 +1130,8 @@ export default function PresupuestoNuevo({
             porcentaje2: parseFloat(it.margen2 ?? it.MARGEN2) || null,
             valor3: v3,
             porcentaje3: parseFloat(it.margen3 ?? it.MARGEN3) || null,
+            // Vinculación vanitory: restaurar presv desde presmv guardado en BD
+            ...(esVanitory && presvRestaurado ? { presv: presvRestaurado } : {}),
           });
         }
       });
@@ -1474,7 +1482,7 @@ export default function PresupuestoNuevo({
       .filter((l) => l.linea && l.linea !== "[Sin líneas]")
       .map((l) => l.linea);
     const payload = {
-      ...(esEdicion ? { numero: numeroPres } : {}),
+      numero: numeroPres ?? null,
       nombre: cliente,
       codcliente: codcliente,
       fecha: new Date().toISOString().slice(0, 10),
@@ -1505,10 +1513,11 @@ export default function PresupuestoNuevo({
           ancho: it.ancho ?? null,
           alto:  it.alto  ?? null,
           // Vinculación vanitory
-          tabla:  it.tabla  ?? null,  // "V" = vanitory
-          vtabla: it.vtabla ?? null,  // id en presupuesto_vanitory
+          tabla:  it.tabla  ?? null,
+          vtabla: it.vtabla ?? null,
+          presv:  it.presv  ?? null,
           // Vinculación mampara
-          presmv: it.presmv ?? null,  // id en presupuesto_mamparas
+          presmv: it.presmv ?? null,
         };
       }),
     };
@@ -5029,8 +5038,8 @@ export default function PresupuestoNuevo({
                 onGuardado={(data) => {
                   if (!data) return;
                   // presm = id generado en presupuesto_mamparas → se asigna a presmv
-                  const presm = data.presm ?? (data.id != null ? `M${String(data.id).padStart(5, "0")}` : null);
-                  if (presm != null) setPresmv(presm); // guardar como string M00088
+                  const presm = data.presm ?? data.id ?? null;
+                  if (presm != null) setPresmv(Number(presm));
 
                   const itemId = `mampara-${presm ?? Date.now()}`;
                   const nuevoItem = {
@@ -5042,7 +5051,6 @@ export default function PresupuestoNuevo({
                     subtotal: Number(data.PRECIO ?? 0),
                     ancho: Number(data.ANCHO ?? 0),
                     alto:  Number(data.ALTO  ?? 0),
-                    presmv: presm ?? null,  // id en presupuestos_mamparas (ej: M00089)
                   };
 
                   // Si ya existe un ítem de mampara, actualizarlo; si no, agregarlo
@@ -5236,6 +5244,7 @@ export default function PresupuestoNuevo({
                 onGuardado={(data) => {
                   if (!data) return;
                   const vtablaId = data.vtabla ?? data.id ?? null;
+                  const presv = data.presv ?? (vtablaId != null ? `V${String(vtablaId).padStart(5,"0")}` : null);
                   agregarAPresupuesto({
                     id: `vanitory-${vtablaId ?? Date.now()}`,
                     seccion: "Vanitory",
@@ -5244,9 +5253,9 @@ export default function PresupuestoNuevo({
                     cantidad: Number(data.cantidad ?? 1),
                     precio: Number(data.vprecio ?? 0),
                     subtotal: Number(data.vprecio ?? 0),
-                    // Vinculación: vtabla = id del registro en presupuesto_vanitory
                     tabla: "V",
                     vtabla: vtablaId != null ? Number(vtablaId) : null,
+                    presv: presv,
                   });
                 }}
                 onVolver={() => {
@@ -5431,11 +5440,6 @@ export default function PresupuestoNuevo({
                   style={{ fontSize: 13, fontWeight: 700, color: "#0a3a5c" }}
                 >
                   {cliente || "Consumidor final"}
-                  {codcliente && (
-                    <span style={{ fontSize: 11, color: "#666", marginLeft: 6 }}>
-                      (Cód: {codcliente})
-                    </span>
-                  )}
                 </span>
                 {telefono1 && (
                   <span style={{ fontSize: 11, color: "#4a6a8c" }}>

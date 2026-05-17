@@ -414,7 +414,7 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver, numer
     const payload = {
       numeropres:   numeroPres ?? null,
       codcliente:   codcliente ?? null,
-      fecha:        new Date().toISOString().slice(0, 10),
+      fecha:        (() => { const d = new Date(); const p = (n) => String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; })(),
       cantidad:     Number(form.cantidad),
       vmodelo:      modelo?.nombre ?? "Personalizado",
       vancho:       Number(form.ancho),
@@ -444,7 +444,8 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver, numer
       setGuardadoOk(true);
       // Devolver al padre el payload completo + id asignado + vtabla para vinculación
       const vtablaId = data.id ?? data.ID ?? null;
-      if (onGuardado) onGuardado({ ...payload, id: vtablaId, vtabla: vtablaId });
+      const presv = data.presv ?? (vtablaId != null ? `V${String(vtablaId).padStart(5,"0")}` : null);
+      if (onGuardado) onGuardado({ ...payload, id: vtablaId, vtabla: vtablaId, presv });
       fetch(`${API}/presupuestos-vanitory/proximo-numero`)
         .then(r => r.json())
         .then(d => { const n = d?.proximo ?? null; if (n != null) setPresupuestoId(String(n).padStart(4, "0")); })

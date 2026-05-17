@@ -182,7 +182,7 @@ app.delete("/clientes/:id", (req, res) => {
 
 // Total de artículos — DEBE ir ANTES de /:id para que Express no confunda "count" con un id
 app.get("/productos/count", (req, res) => {
-  const { search, familia, rubro } = req.query;
+  const { search, articulo, familia, rubro } = req.query;
   let sql = "SELECT COUNT(*) as total FROM articulos WHERE 1=1";
   let params = [];
   if (search) {
@@ -1328,7 +1328,7 @@ app.post("/presupuestos-mamparas", (req, res) => {
       (err2, rows) => {
         if (err2) console.error("Error leyendo presm:", err2.message);
         const presmVal = (!err2 && rows.length > 0) ? rows[0].presm : null;
-        res.json({ id: newId, presm: presmVal ?? newId, ...item }); // presm fallback a newId
+        res.json({ id: newId, presm: presmVal ?? newId, ...item });
       }
     );
   });
@@ -1894,68 +1894,12 @@ app.post("/tabla-presupuestos", (req, res) => {
     .map((t) => Math.round(t * 100) / 100 || null);
 
   // ── Paso 1: guardar encabezado en tabla_indice ───────────────────────────
-  const guardarIndice = (callback) => {
-    if (numFinal) {
-      // Revisión de presupuesto existente — calcular nueva revisión
-      db.query(
-        "SELECT COALESCE(MAX(revision), 0) AS max_rev FROM tabla_indice WHERE numeropres = ?",
-        [numFinal],
-        (err, rows) => {
-          if (err) return res.status(500).json({ error: err.message });
-          const nuevaRev = parseInt(rows[0]?.max_rev ?? 0, 10) + 1;
-          const filaIndice = {
-            numeropres: Number(numFinal),
-            nombre: nombreCliente,
-            fecha: fecha,
-            lista: listaGuardar,
-            linea1: lineasArr[0] ?? null,
-            valor1: totalesPorLinea[0] ?? null,
-            linea2: lineasArr[1] ?? null,
-            valor2: totalesPorLinea[1] ?? null,
-            linea3: lineasArr[2] ?? null,
-            valor3: totalesPorLinea[2] ?? null,
-            revision: nuevaRev,
-          };
-          db.query("INSERT INTO tabla_indice SET ?", filaIndice, (err2) => {
-            if (err2) return res.status(500).json({ error: err2.message });
-            callback(Number(numFinal), nuevaRev);
-          });
-        },
-      );
-    } else {
-      // Presupuesto nuevo — el id autogenerado será el numeropres
-      const filaIndice = {
-        nombre: nombreCliente,
-        fecha: fecha,
-        lista: listaGuardar,
-        linea1: lineasArr[0] ?? null,
-        valor1: totalesPorLinea[0] ?? null,
-        linea2: lineasArr[1] ?? null,
-        valor2: totalesPorLinea[1] ?? null,
-        linea3: lineasArr[2] ?? null,
-        valor3: totalesPorLinea[2] ?? null,
-        revision: 0,
-      };
-      db.query("INSERT INTO tabla_indice SET ?", filaIndice, (err, r) => {
-        if (err) return res.status(500).json({ error: err.message });
-        const newId = r.insertId;
-        // El id autogenerado se copia como numeropres
-        db.query(
-          "UPDATE tabla_indice SET numeropres = ? WHERE id = ?",
-          [newId, newId],
-          (err2) => {
-            if (err2) return res.status(500).json({ error: err2.message });
-            callback(newId, 0);
-          },
-        );
-      });
-    }
-  };
+  const numFinalVal = numFinal ? Number(numFinal) : null;
+  const revision = 0;
 
-  // ── Pasos 2-4: borrar items anteriores e insertar los nuevos ────────────
-  guardarIndice((numeroPres, revision) => {
+  const ejecutarGuardado = (numeroPres) => {
+    let primerInsert = true;
     console.log("[tabla-presupuestos] presmvPayload recibido:", presmvPayload, "| numeroPres:", numeroPres);
-  console.log("[tabla-presupuestos] items recibidos:", JSON.stringify((items ?? []).map(it => ({ seccion: it.seccion, presmv: it.presmv }))), "| total:", (items ?? []).length);
     if (filas.length === 0) {
       return res.json({ numero: numeroPres, revision, insertados: 0 });
     }
@@ -1974,9 +1918,9 @@ app.post("/tabla-presupuestos", (req, res) => {
         tipo: it.seccion ?? it.tipo ?? null,
         cantidad: parseFloat(it.cantidad) || 1,
         revision: Number(revision),
-        ancho: it.ancho != null ? Number(it.ancho) : null,
-        alto:  it.alto  != null ? Number(it.alto)  : null,
-        fecha: new Date().toISOString().slice(0, 10),  // fecha actual YYYY-MM-DD
+        fecha: new Date().toISOString().slice(0, 10),
+        ancho: it.ancho != null ? String(it.ancho) : null,
+        alto:  it.alto  != null ? String(it.alto)  : null,
         presmv: it.presmv ?? presmvPayload ?? null,
         linea1: lineasArr[0] ?? null,
         valor1: parseFloat(it.precios?.[0]?.precio ?? it.valor1 ?? it.precio) || null,
@@ -2007,12 +1951,14 @@ app.post("/tabla-presupuestos", (req, res) => {
         }
         // Si el item es mampara, actualizar numeropres en presupuestos_mamparas
         const presmvVal = filaItem.presmv;
+        console.log("[UPDATE mamparas] presmvVal:", presmvVal, "| numeroPres:", numeroPres);
         if (!err2 && presmvVal) {
           db.query(
             "UPDATE presupuestos_mamparas SET numeropres = ? WHERE presm = ?",
             [numeroPres, presmvVal],
             (errUpd) => {
               if (errUpd) console.error("Error UPDATE presupuestos_mamparas numeropres:", errUpd.message);
+              else console.log("[UPDATE mamparas] OK - presm:", presmvVal, "numeropres:", numeroPres);
             }
           );
         }
@@ -2024,7 +1970,16 @@ app.post("/tabla-presupuestos", (req, res) => {
         }
       });
     });
-  });
+  }; // fin ejecutarGuardado
+
+  if (numFinalVal != null) {
+    ejecutarGuardado(numFinalVal);
+  } else {
+    db.query("SELECT COALESCE(MAX(numeropres), 0) + 1 AS siguiente FROM tabla_presupuestos", (err, rows) => {
+      const siguiente = (!err && rows[0]) ? rows[0].siguiente : 1;
+      ejecutarGuardado(siguiente);
+    });
+  }
 });
 
 // PUT encabezado en tabla_indice (edición directa sin nueva revisión)

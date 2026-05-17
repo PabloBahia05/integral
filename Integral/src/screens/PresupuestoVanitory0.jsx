@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 
 const API = "http://localhost:3001";
 
-export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
+export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver, numeroPres, cliente, codcliente, revision, onGuardado }) {
   const modelo = modeloRaw
     ? { ...modeloRaw, codart: modeloRaw.codartint ?? modeloRaw.CODARTINT ?? modeloRaw.codart ?? modeloRaw.codtipvan ?? null }
     : null;
@@ -307,15 +307,22 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
     });
 
     Promise.all([
-      // Materiales: todos los artículos con area = 2
-      fetch(`${API}/productos?area=2`)
+      // Placas: articulo LIKE %PLACA% AND proveedor != DANIEL ROQUE SRL
+      fetch(`${API}/productos/placas-vanitory`)
         .then(r => r.json())
         .then(data => (Array.isArray(data) ? data : []).map(normalizar))
         .catch(() => []),
-    ]).then(([mats]) => {
+      // Guías: articulo LIKE %GUIAS TELESCOPICAS%
+      fetch(`${API}/productos/bisagras-vanitory`)
+        .then(r => r.json()).then(d => Array.isArray(d) ? d : []).catch(() => []),
+      fetch(`${API}/productos/guias-vanitory`)
+        .then(r => r.json())
+        .then(data => (Array.isArray(data) ? data : []).map(normalizar))
+        .catch(() => []),
+    ]).then(([mats, bis, her]) => {
       setInsumosMuebles(mats);
-      setBisagras([]);
-      setHerrajes([]);
+      setBisagras(bis);
+      setHerrajes(her);
       // Precargar material blanco con PMDFBL18
       const blanco = mats.find(p => (p.codart ?? p.codartint ?? "").toUpperCase() === "PMDFBL18");
       if (blanco) {
@@ -405,22 +412,24 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
     setGuardadoOk(false);
 
     const payload = {
-      NOMBRE:             form.cliente,
-      FECHA:              new Date().toISOString().slice(0, 10),
-      CANTIDAD:           Number(form.cantidad),
-      MODELO:             modelo?.nombre ?? "Personalizado",
-      ANCHO:              Number(form.ancho),
-      ALTO:               Number(form.alto),
-      PROFUNDO:           Number(form.profundo),
-      COLOCACION:         Number(form.colocacion),
-      MATERIAL:           form.material || null,
-      MATERIAL_PRECIO:    Number(form.materialPrecio) || 0,
-      CORREDERA:          form.corredera || null,
-      CORREDERA_PRECIO:   Number(form.correderaPrecio) || 0,
-      CORREDERA_CANTIDAD: Number(form.correderaCantidad) || 1,
-      MARGEN:             Number(form.margen) || 0,
-      PRECIO:             Number(total),
-      REVISION:           0,
+      numeropres:   numeroPres ?? null,
+      codcliente:   codcliente ?? null,
+      fecha:        new Date().toISOString().slice(0, 10),
+      cantidad:     Number(form.cantidad),
+      vmodelo:      modelo?.nombre ?? "Personalizado",
+      vancho:       Number(form.ancho),
+      valto:        Number(form.alto),
+      vprofundidad: Number(form.profundo),
+      vmaterial_cl: form.material || null,
+      vmaterial_bl: form.materialBlanco || null,
+      vcorrederas:  Number(form.correderaPrecio) || 0,
+      vbisagra:     form.corredera || null,
+      vlatder:      Number(form.colocacion) || 0,
+      vlatizq:      1,
+      vbase:        0,
+      vprecio:      Number(total),
+      vrevision:    0,
+      // vtabla: se completa con el id asignado por BD al guardar (ver onGuardado)
     };
 
     try {
@@ -431,7 +440,11 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al guardar");
+
       setGuardadoOk(true);
+      // Devolver al padre el payload completo + id asignado + vtabla para vinculación
+      const vtablaId = data.id ?? data.ID ?? null;
+      if (onGuardado) onGuardado({ ...payload, id: vtablaId, vtabla: vtablaId });
       fetch(`${API}/presupuestos-vanitory/proximo-numero`)
         .then(r => r.json())
         .then(d => { const n = d?.proximo ?? null; if (n != null) setPresupuestoId(String(n).padStart(4, "0")); })

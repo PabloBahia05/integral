@@ -82,6 +82,13 @@ db.connect((err) => {
 
 // Búsqueda de clientes solo por nombre (LIKE) — para el campo Cliente
 // ⚠️ DEBE ir ANTES de /:id
+// Helper: fecha+hora actual en formato MySQL (YYYY-MM-DD HH:MM:SS)
+const ahora = () => {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
 app.get("/clientes/buscar-nombre", (req, res) => {
   const { q } = req.query;
   if (!q || !q.trim()) return res.json([]);
@@ -1299,7 +1306,7 @@ app.post("/presupuestos-mamparas", (req, res) => {
     ...fields,
     ...artValores,
     REVISION: req.body.REVISION != null ? Number(req.body.REVISION) : 0,
-    FECHA: fields.FECHA ?? new Date().toISOString().slice(0, 10),
+    fecha: fields.fecha ?? fields.FECHA ?? ahora(),
   };
 
   // Filtrar solo columnas reales de la tabla y normalizar claves a minúscula
@@ -1511,9 +1518,30 @@ app.get("/presupuestos-vanitory", (req, res) => {
 
 app.post("/presupuestos-vanitory", (req, res) => {
   const { id, ...item } = req.body;
+  console.log("[POST vanitory] keys:", Object.keys(item));
   db.query("INSERT INTO presupuestos_vanitory SET ?", item, (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ id: result.insertId, ...item });
+    if (err) { console.error("[POST vanitory] Error INSERT:", err.message); return res.status(500).json({ error: err.message }); }
+    const newId = result.insertId;
+    const presv = `V${String(newId).padStart(5, "0")}`;
+    // Igual que mampara: UPDATE presv dentro del callback y responder DESPUÉS
+    db.query(
+      "UPDATE presupuestos_vanitory SET presv = ? WHERE id = ?",
+      [presv, newId],
+      (errUpd) => {
+        if (errUpd) console.error("Error UPDATE presupuestos_vanitory presv:", errUpd.message);
+        // Leer presv confirmado de la BD (igual que mampara lee presm)
+        db.query(
+          "SELECT presv FROM presupuestos_vanitory WHERE id = ?",
+          [newId],
+          (err2, rows) => {
+            if (err2) console.error("Error leyendo presv:", err2.message);
+            const presvVal = (!err2 && rows.length > 0) ? rows[0].presv : presv;
+            console.log("[POST vanitory] id:", newId, "presv:", presvVal);
+            res.json({ id: newId, presv: presvVal, ...item });
+          }
+        );
+      }
+    );
   });
 });
 
@@ -1874,9 +1902,7 @@ app.post("/tabla-presupuestos", (req, res) => {
   // Sanitizar fecha
   const fechaRaw = (fechaMin ?? fechaMay ?? "").trim();
   const fechaValida = /^\d{4}-\d{2}-\d{2}$/.test(fechaRaw) ? fechaRaw : null;
-  const hoy = new Date();
-  const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
-  const fecha = fechaValida ?? fechaHoy;
+  const fecha = fechaValida ?? ahora();
 
   const filas = Array.isArray(items) ? items : [];
 
@@ -1900,6 +1926,8 @@ app.post("/tabla-presupuestos", (req, res) => {
   const ejecutarGuardado = (numeroPres) => {
     let primerInsert = true;
     console.log("[tabla-presupuestos] presmvPayload recibido:", presmvPayload, "| numeroPres:", numeroPres);
+    console.log("[tabla-presupuestos] items recibidos:", JSON.stringify((items ?? []).map(it => ({ seccion: it.seccion, presmv: it.presmv, presv: it.presv }))), "| total:", (items ?? []).length);
+    console.log("[tabla-presupuestos] filas.length:", filas.length);
     if (filas.length === 0) {
       return res.json({ numero: numeroPres, revision, insertados: 0 });
     }
@@ -1918,10 +1946,10 @@ app.post("/tabla-presupuestos", (req, res) => {
         tipo: it.seccion ?? it.tipo ?? null,
         cantidad: parseFloat(it.cantidad) || 1,
         revision: Number(revision),
-        fecha: new Date().toISOString().slice(0, 10),
+        fecha: ahora(),
         ancho: it.ancho != null ? String(it.ancho) : null,
         alto:  it.alto  != null ? String(it.alto)  : null,
-        presmv: it.presmv ?? presmvPayload ?? null,
+        presmv: it.presmv ?? it.presv ?? presmvPayload ?? null,
         linea1: lineasArr[0] ?? null,
         valor1: parseFloat(it.precios?.[0]?.precio ?? it.valor1 ?? it.precio) || null,
         porcentaje1: it.porcentaje1 ?? it.margen1 ?? null,
@@ -1950,17 +1978,49 @@ app.post("/tabla-presupuestos", (req, res) => {
           );
         }
         // Si el item es mampara, actualizar numeropres en presupuestos_mamparas
+
+        // Actualizar numeropres en presupuestos_mamparas si es mampara
         const presmvVal = filaItem.presmv;
-        console.log("[UPDATE mamparas] presmvVal:", presmvVal, "| numeroPres:", numeroPres);
-        if (!err2 && presmvVal) {
+        if (!err2 && presmvVal && String(presmvVal).startsWith("M")) {
+          db.query("UPDATE presupuestos_mamparas SET numeropres = ? WHERE presm = ?", [numeroPres, presmvVal],
+            (errUpd) => { if (errUpd) console.error("Error UPDATE mamparas:", errUpd.message); });
+        }
+        // Actualizar numeropres en presupuestos_vanitory si es vanitory
+        if (!err2 && presmvVal && String(presmvVal).startsWith("V")) {
+          // Extraer id numérico del presv ("V00018" → 18)
+          const vanitoryIdNum = parseInt(String(presmvVal).replace(/^V0*/i, ""), 10);
+          console.log("[tabla-presupuestos] vinculando vanitory presv:", presmvVal, "id:", vanitoryIdNum, "numeroPres:", numeroPres);
+          // Vincular PRIMERO por id numérico (robusto, no depende de que presv ya esté escrito en BD)
+          if (!isNaN(vanitoryIdNum) && vanitoryIdNum > 0) {
+            db.query(
+              "UPDATE presupuestos_vanitory SET numeropres = ? WHERE id = ?",
+              [numeroPres, vanitoryIdNum],
+              (errUpd) => {
+                if (errUpd) console.error("Error UPDATE vanitory por id:", errUpd.message);
+                else console.log("[tabla-presupuestos] vanitory id", vanitoryIdNum, "→ numeropres:", numeroPres, "OK");
+              }
+            );
+          }
+          // También vincular por presv por si el id no coincide
           db.query(
-            "UPDATE presupuestos_mamparas SET numeropres = ? WHERE presm = ?",
+            "UPDATE presupuestos_vanitory SET numeropres = ? WHERE presv = ? AND (numeropres IS NULL OR numeropres = 0)",
             [numeroPres, presmvVal],
-            (errUpd) => {
-              if (errUpd) console.error("Error UPDATE presupuestos_mamparas numeropres:", errUpd.message);
-              else console.log("[UPDATE mamparas] OK - presm:", presmvVal, "numeropres:", numeroPres);
-            }
+            (errUpd2) => { if (errUpd2) console.error("Error UPDATE vanitory por presv:", errUpd2.message); }
           );
+        }
+        // Fallback: si el item tiene vtabla pero presmv no empezó con "V"
+        const vtablaVal = it.vtabla ?? null;
+        if (!err2 && vtablaVal && (!presmvVal || !String(presmvVal).startsWith("V"))) {
+          const vtablaId = parseInt(vtablaVal, 10);
+          const presvGen = vtablaId ? `V${String(vtablaId).padStart(5, "0")}` : null;
+          if (!isNaN(vtablaId) && vtablaId > 0) {
+            console.log("[tabla-presupuestos] fallback vtabla", vtablaId, "→ numeroPres:", numeroPres);
+            db.query(
+              "UPDATE presupuestos_vanitory SET numeropres = ?, presv = COALESCE(presv, ?) WHERE id = ?",
+              [numeroPres, presvGen, vtablaId],
+              (errUpd3) => { if (errUpd3) console.error("Error UPDATE vanitory por vtabla:", errUpd3.message); }
+            );
+          }
         }
         pendientes--;
         if (pendientes === 0) {
