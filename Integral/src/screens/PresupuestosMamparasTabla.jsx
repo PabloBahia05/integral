@@ -12,7 +12,8 @@ const API = "http://localhost:3001";
 const COLUMNS_BASE = [
   { key: "presm",      label: "N°"        },
   { key: "REVISION",   label: "Rev."      },
-  { key: "CODCLIENTE", label: "Cliente"   },
+  { key: "NUMEROPRES", label: "N° Pres."  },
+  { key: "NOMBRE",     label: "Cliente"   },
   { key: "FECHA",      label: "Fecha"     },
   { key: "MODELO",     label: "Modelo"    },
   { key: "CANTIDAD",   label: "Cant."     },
@@ -101,6 +102,7 @@ export default function PresupuestosMamparasTabla({
       ...p,
       presm:      p.presm      ?? p.PRESM      ?? p.id ?? "",
       CODCLIENTE: p.CODCLIENTE ?? p.codcliente ?? "",
+      NUMEROPRES: p.NUMEROPRES ?? p.numeropres ?? "",
       NOMBRE:     p.NOMBRE     ?? p.nombre     ?? "",
       FECHA:      p.FECHA      ?? p.fecha      ?? "",
       CANTIDAD:   p.CANTIDAD   ?? p.cantidad   ?? "",

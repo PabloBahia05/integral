@@ -397,7 +397,6 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
     const nuevaRevision = modoEdicion ? revision + 1 : 0;
 
     const payload = {
-      NOMBRE:     form.cliente ?? "",
       CODCLIENTE: form.codcliente ?? null,
       FECHA:      new Date().toISOString().slice(0, 10),
       CANTIDAD:   Number(form.cantidad),

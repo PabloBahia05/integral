@@ -1108,6 +1108,12 @@ export default function PresupuestoNuevo({
             console.log("[cargar] mampara encontrada, pmv:", pmv);
             if (pmv != null) setPresmv(Number(pmv));
           }
+          // Si es vanitory, restaurar presv desde presmv guardado en BD
+          const esVanitory = seccion.toLowerCase() === "vanitory";
+          const presvRestaurado = esVanitory ? (it.presmv ?? it.PRESMV ?? null) : null;
+          if (esVanitory && presvRestaurado) {
+            console.log("[cargar] vanitory encontrado, presv restaurado:", presvRestaurado);
+          }
           otrosItems.push({
             id: `otros-${it.id}`,
             seccion,
@@ -1124,6 +1130,8 @@ export default function PresupuestoNuevo({
             porcentaje2: parseFloat(it.margen2 ?? it.MARGEN2) || null,
             valor3: v3,
             porcentaje3: parseFloat(it.margen3 ?? it.MARGEN3) || null,
+            // Vinculación vanitory: restaurar presv desde presmv guardado en BD
+            ...(esVanitory && presvRestaurado ? { presv: presvRestaurado } : {}),
           });
         }
       });
@@ -1458,7 +1466,8 @@ export default function PresupuestoNuevo({
   };
 
   const handleGuardar = async (esNuevaRev = false) => {
-    if (!cliente.trim()) {
+    const esEdicionExistente = numeroPres !== null;
+    if (!cliente.trim() && !esEdicionExistente) {
       setError("El cliente es obligatorio.");
       return;
     }
@@ -1480,7 +1489,8 @@ export default function PresupuestoNuevo({
       fecha: new Date().toISOString().slice(0, 10),
       lista: listaPrecio,
       lineasElegidas,
-      ...(esNuevaRev ? { nuevaRevision: true } : {}),
+      // Si ya existe numeroPres, SIEMPRE nueva revisión (nunca pisar la anterior)
+      nuevaRevision: esEdicion || esNuevaRev,
       presmv: presmv ?? null,
       items: presupuestoItems.map((it) => {
         const v1 =
@@ -1513,6 +1523,12 @@ export default function PresupuestoNuevo({
         };
       }),
     };
+    console.log("[handleGuardar] payload:", JSON.stringify({
+      numero: payload.numero,
+      nuevaRevision: payload.nuevaRevision,
+      itemsCount: payload.items?.length,
+      cliente: payload.nombre,
+    }));
     try {
       const res = await fetch(`${API}/tabla-presupuestos`, {
         method: "POST",
@@ -2031,13 +2047,15 @@ export default function PresupuestoNuevo({
           >
             🔄 Actualizar
           </button>
-          <button
-            className="pn-tool-btn save"
-            onClick={() => handleGuardar(false)}
-            disabled={guardando}
-          >
-            💾 {guardando ? "Guardando..." : "Guardar"}
-          </button>
+          {numeroPres === null && (
+            <button
+              className="pn-tool-btn save"
+              onClick={() => handleGuardar(false)}
+              disabled={guardando}
+            >
+              💾 {guardando ? "Guardando..." : "Guardar"}
+            </button>
+          )}
           {numeroPres !== null && (
             <button
               className="pn-tool-btn"
@@ -2050,7 +2068,7 @@ export default function PresupuestoNuevo({
                 fontWeight: 700,
               }}
             >
-              🔖 Nueva Revisión
+              🔖 {guardando ? "Guardando..." : "Nueva Revisión"}
             </button>
           )}
         </div>
@@ -5029,9 +5047,9 @@ export default function PresupuestoNuevo({
                 onSelectItem={(item) => console.log("Mampara:", item)}
                 onGuardado={(data) => {
                   if (!data) return;
-                  // presm = id generado en presupuesto_mamparas → se asigna a presmv
+                  // presm = valor generado por trigger (ej: "M00008") → se asigna a presmv
                   const presm = data.presm ?? data.id ?? null;
-                  if (presm != null) setPresmv(Number(presm));
+                  if (presm != null) setPresmv(presm);
 
                   const itemId = `mampara-${presm ?? Date.now()}`;
                   const nuevoItem = {
@@ -5043,6 +5061,7 @@ export default function PresupuestoNuevo({
                     subtotal: Number(data.PRECIO ?? 0),
                     ancho: Number(data.ANCHO ?? 0),
                     alto:  Number(data.ALTO  ?? 0),
+                    presmv: presm ?? null,
                   };
 
                   // Si ya existe un ítem de mampara, actualizarlo; si no, agregarlo

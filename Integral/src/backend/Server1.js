@@ -1921,9 +1921,9 @@ app.post("/tabla-presupuestos", (req, res) => {
 
   // ── Paso 1: guardar encabezado en tabla_indice ───────────────────────────
   const numFinalVal = numFinal ? Number(numFinal) : null;
-  const revision = 0;
+  const nuevaRevision = req.body.nuevaRevision === true;
 
-  const ejecutarGuardado = (numeroPres) => {
+  const ejecutarGuardado = (numeroPres, revision = 0) => {
     let primerInsert = true;
     console.log("[tabla-presupuestos] presmvPayload recibido:", presmvPayload, "| numeroPres:", numeroPres);
     console.log("[tabla-presupuestos] items recibidos:", JSON.stringify((items ?? []).map(it => ({ seccion: it.seccion, presmv: it.presmv, presv: it.presv }))), "| total:", (items ?? []).length);
@@ -2033,11 +2033,24 @@ app.post("/tabla-presupuestos", (req, res) => {
   }; // fin ejecutarGuardado
 
   if (numFinalVal != null) {
-    ejecutarGuardado(numFinalVal);
+    if (nuevaRevision) {
+      // Calcular MAX(revision) + 1 para este numeropres
+      db.query(
+        "SELECT COALESCE(MAX(revision), 0) + 1 AS siguiente FROM tabla_presupuestos WHERE numeropres = ?",
+        [numFinalVal],
+        (err, rows) => {
+          const siguienteRev = (!err && rows[0]) ? Number(rows[0].siguiente) : 1;
+          console.log("[tabla-presupuestos] nueva revisión:", siguienteRev, "para numeropres:", numFinalVal);
+          ejecutarGuardado(numFinalVal, siguienteRev);
+        }
+      );
+    } else {
+      ejecutarGuardado(numFinalVal, 0);
+    }
   } else {
     db.query("SELECT COALESCE(MAX(numeropres), 0) + 1 AS siguiente FROM tabla_presupuestos", (err, rows) => {
       const siguiente = (!err && rows[0]) ? rows[0].siguiente : 1;
-      ejecutarGuardado(siguiente);
+      ejecutarGuardado(siguiente, 0);
     });
   }
 });
