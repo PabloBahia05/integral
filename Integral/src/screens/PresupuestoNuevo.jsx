@@ -1136,6 +1136,8 @@ export default function PresupuestoNuevo({
             ...(esVanitory && presvRestaurado ? { presv: presvRestaurado } : {}),
             // Vinculación mampara
             ...(esMampara && presmvRestaurado ? { presmv: presmvRestaurado } : {}),
+            // Medidas mampara
+            ...(esMampara ? { ancho: it.ancho ?? it.ANCHO ?? null, alto: it.alto ?? it.ALTO ?? null } : {}),
           });
         }
       });
@@ -5047,7 +5049,7 @@ export default function PresupuestoNuevo({
                 codclienteInicial={codcliente}
                 numeroPres={numeroPres}
                 presupuestoACargar={mamparaAEditar}
-                onCargado={() => setMamparaAEditar(null)}
+                onCargado={() => {}}
                 onSelectItem={(item) => console.log("Mampara:", item)}
                 onGuardado={(data) => {
                   if (!data) return;
@@ -5722,6 +5724,26 @@ export default function PresupuestoNuevo({
                       >
                         Cant.
                       </th>
+                      <th
+                        style={{
+                          padding: "9px 10px",
+                          textAlign: "center",
+                          fontWeight: 700,
+                          width: 70,
+                        }}
+                      >
+                        Ancho
+                      </th>
+                      <th
+                        style={{
+                          padding: "9px 10px",
+                          textAlign: "center",
+                          fontWeight: 700,
+                          width: 70,
+                        }}
+                      >
+                        Alto
+                      </th>
                       {lineasActivas.length > 0 ? (
                         lineasActivas.map((l) => (
                           <th
@@ -5793,11 +5815,11 @@ export default function PresupuestoNuevo({
                           0,
                         );
                         const totalCols =
-                          4 +
+                          6 +
                           (lineasActivas.length > 0
                             ? lineasActivas.length
                             : 1) +
-                          1; // sección+prod+desc+cant + líneas + subtotal
+                          1; // sección+prod+desc+cant+ancho+alto + líneas + subtotal
 
                         return [
                           // Fila de sección
@@ -5864,6 +5886,26 @@ export default function PresupuestoNuevo({
                                   }}
                                 >
                                   {item.cantidad}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "7px 10px",
+                                    border: "1px solid #e8f0f7",
+                                    textAlign: "center",
+                                    color: item.seccion === "Mampara" ? "#0a3a5c" : "#aaa",
+                                  }}
+                                >
+                                  {item.seccion === "Mampara" ? (item.ancho ?? "—") : "—"}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "7px 10px",
+                                    border: "1px solid #e8f0f7",
+                                    textAlign: "center",
+                                    color: item.seccion === "Mampara" ? "#0a3a5c" : "#aaa",
+                                  }}
+                                >
+                                  {item.seccion === "Mampara" ? (item.alto ?? "—") : "—"}
                                 </td>
                                 {lineasActivas.length > 0 ? (
                                   lineasActivas.map((l, li) => {

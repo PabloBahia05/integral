@@ -1260,19 +1260,14 @@ app.get("/presupuestos-mamparas/proximo-numero", (req, res) => {
 // GET todas las revisiones de un número de presupuesto
 app.get("/presupuestos-mamparas/:id", (req, res) => {
   const { id } = req.params;
-  // Busca por presm (ej: "M00007") o por id numérico, trae nombre del cliente
+  // Busca por presm (ej: "M00007") o por id numérico
   db.query(
-    `SELECT m.*, c.nombre AS nombre_cliente
-     FROM presupuestos_mamparas m
-     LEFT JOIN clientes c ON c.codcliente = m.codcliente
-     WHERE m.presm = ? OR m.id = ?
-     ORDER BY m.revision DESC LIMIT 1`,
+    "SELECT * FROM presupuestos_mamparas WHERE presm = ? OR id = ? ORDER BY revision DESC LIMIT 1",
     [id, isNaN(id) ? -1 : Number(id)],
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
       if (!rows.length) return res.status(404).json({ error: "No encontrado" });
-      const row = rows[0];
-      res.json({ ...row, NOMBRE: row.nombre_cliente ?? "" });
+      res.json(rows[0]);
     }
   );
 });

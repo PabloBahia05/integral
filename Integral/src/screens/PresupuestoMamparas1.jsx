@@ -45,24 +45,8 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
   // ── Cargar presupuesto guardado (reabrir) ────────────────────────────────────
   // Se activa cuando el componente padre pasa un presupuesto guardado para editar.
   // Reconstituye todo el estado y pone modoEdicion = true.
-  const cargadoRef = useRef(false);
-  const modeloARestaurarRef = useRef(null);
-
-  // Cuando articulos carga y hay un modelo pendiente de restaurar, buscar el tipo
   useEffect(() => {
-    if (!articulos.length || !modeloARestaurarRef.current) return;
-    const modeloGuardado = modeloARestaurarRef.current;
-    const art = articulos.find(a => a.articulo === modeloGuardado);
-    if (art?.familia) setBusqueda(art.familia);
-    if (art) setArticuloSeleccionado(art);
-    setModelo(modeloGuardado);
-    modeloARestaurarRef.current = null;
-  }, [articulos]);
-
-  useEffect(() => {
-    if (!presupuestoACargar) { cargadoRef.current = false; return; }
-    if (cargadoRef.current) return;
-    cargadoRef.current = true;
+    if (!presupuestoACargar) return;
 
     // Normalizar claves a mayúscula para unificar datos de BD (minúscula) y del estado (mayúscula)
     const p = Object.fromEntries(
@@ -86,12 +70,9 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
       colocacion: Number(p.COLOCACION ?? 0),
     });
 
-    // Modelo / tipo — se setea ahora, y también se re-aplica cuando articulos cargue
+    // Modelo / tipo
     setModelo(p.MODELO ?? "");
     setBusqueda("");   // el tipo se inferirá al seleccionar el artículo
-
-    // Guardar modelo en ref para re-aplicar cuando articulos cargue
-    modeloARestaurarRef.current = p.MODELO ?? null;
 
     // Reconstituir artículos asociados desde art1..art10 y valor1..valor10
     const slotsGuardados = [];

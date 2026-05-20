@@ -1106,7 +1106,7 @@ export default function PresupuestoNuevo({
           if (seccion.toLowerCase() === "mampara") {
             const pmv = it.presmv ?? it.PRESMV ?? null;
             console.log("[cargar] mampara encontrada, pmv:", pmv);
-            if (pmv != null) setPresmv(Number(pmv));
+            if (pmv != null) setPresmv(pmv);
           }
           // Si es vanitory, restaurar presv desde presmv guardado en BD
           const esVanitory = seccion.toLowerCase() === "vanitory";
@@ -1114,6 +1114,8 @@ export default function PresupuestoNuevo({
           if (esVanitory && presvRestaurado) {
             console.log("[cargar] vanitory encontrado, presv restaurado:", presvRestaurado);
           }
+          const esMampara = seccion.toLowerCase() === "mampara";
+          const presmvRestaurado = esMampara ? (it.presmv ?? it.PRESMV ?? null) : null;
           otrosItems.push({
             id: `otros-${it.id}`,
             seccion,
@@ -1130,8 +1132,10 @@ export default function PresupuestoNuevo({
             porcentaje2: parseFloat(it.margen2 ?? it.MARGEN2) || null,
             valor3: v3,
             porcentaje3: parseFloat(it.margen3 ?? it.MARGEN3) || null,
-            // Vinculación vanitory: restaurar presv desde presmv guardado en BD
+            // Vinculación vanitory
             ...(esVanitory && presvRestaurado ? { presv: presvRestaurado } : {}),
+            // Vinculación mampara
+            ...(esMampara && presmvRestaurado ? { presmv: presmvRestaurado } : {}),
           });
         }
       });
@@ -5043,7 +5047,7 @@ export default function PresupuestoNuevo({
                 codclienteInicial={codcliente}
                 numeroPres={numeroPres}
                 presupuestoACargar={mamparaAEditar}
-                onCargado={() => setMamparaAEditar(null)}
+                onCargado={() => {}}
                 onSelectItem={(item) => console.log("Mampara:", item)}
                 onGuardado={(data) => {
                   if (!data) return;

@@ -45,24 +45,8 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
   // ── Cargar presupuesto guardado (reabrir) ────────────────────────────────────
   // Se activa cuando el componente padre pasa un presupuesto guardado para editar.
   // Reconstituye todo el estado y pone modoEdicion = true.
-  const cargadoRef = useRef(false);
-  const modeloARestaurarRef = useRef(null);
-
-  // Cuando articulos carga y hay un modelo pendiente de restaurar, buscar el tipo
   useEffect(() => {
-    if (!articulos.length || !modeloARestaurarRef.current) return;
-    const modeloGuardado = modeloARestaurarRef.current;
-    const art = articulos.find(a => a.articulo === modeloGuardado);
-    if (art?.familia) setBusqueda(art.familia);
-    if (art) setArticuloSeleccionado(art);
-    setModelo(modeloGuardado);
-    modeloARestaurarRef.current = null;
-  }, [articulos]);
-
-  useEffect(() => {
-    if (!presupuestoACargar) { cargadoRef.current = false; return; }
-    if (cargadoRef.current) return;
-    cargadoRef.current = true;
+    if (!presupuestoACargar) return;
 
     // Normalizar claves a mayúscula para unificar datos de BD (minúscula) y del estado (mayúscula)
     const p = Object.fromEntries(
@@ -70,7 +54,7 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
     );
 
     // Número de presupuesto y revisión
-    setPresupuestoId(p.PRESM ?? p.NUMERO ?? p.ID ?? null);
+    setPresupuestoId(p.PRESM ? Number(p.PRESM) : p.NUMERO ? Number(p.NUMERO) : Number(p.ID ?? 0));
     setRevision(Number(p.REVISION ?? 0));
     setModoEdicion(true);
     setPresupuestoDbId(presupuestoACargar.id ?? null);
@@ -86,12 +70,9 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
       colocacion: Number(p.COLOCACION ?? 0),
     });
 
-    // Modelo / tipo — se setea ahora, y también se re-aplica cuando articulos cargue
+    // Modelo / tipo
     setModelo(p.MODELO ?? "");
     setBusqueda("");   // el tipo se inferirá al seleccionar el artículo
-
-    // Guardar modelo en ref para re-aplicar cuando articulos cargue
-    modeloARestaurarRef.current = p.MODELO ?? null;
 
     // Reconstituir artículos asociados desde art1..art10 y valor1..valor10
     const slotsGuardados = [];
@@ -428,8 +409,8 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
       REVISION:   nuevaRevision,
       // Vinculación con el presupuesto principal de tabla_presupuestos
       NUMEROPRES: numeroPres ?? null,
-      // Si es revisión, mandar PRESM para mantener el mismo número de mampara
-      ...(modoEdicion && presupuestoId != null ? { PRESM: presupuestoId } : {}),
+      // NUMERO como entero: si es revisión manda el número actual para agrupar revisiones
+      ...(modoEdicion && presupuestoId != null ? { NUMERO: Number(presupuestoId) } : {}),
       ...artValores,
     };
 
