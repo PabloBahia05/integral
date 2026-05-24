@@ -1136,8 +1136,9 @@ export default function PresupuestoNuevo({
             ...(esVanitory && presvRestaurado ? { presv: presvRestaurado } : {}),
             // Vinculación mampara
             ...(esMampara && presmvRestaurado ? { presmv: presmvRestaurado } : {}),
-            // Medidas mampara
-            ...(esMampara ? { ancho: it.ancho ?? it.ANCHO ?? null, alto: it.alto ?? it.ALTO ?? null } : {}),
+            // Medidas (mampara y vanitory)
+            ancho: it.ancho ?? it.ANCHO ?? null,
+            alto:  it.alto  ?? it.ALTO  ?? null,
           });
         }
       });
@@ -5270,6 +5271,8 @@ export default function PresupuestoNuevo({
                     cantidad: Number(data.cantidad ?? 1),
                     precio: Number(data.vprecio ?? 0),
                     subtotal: Number(data.vprecio ?? 0),
+                    ancho: data.vancho ?? null,
+                    alto: data.valto ?? null,
                     tabla: "V",
                     vtabla: vtablaId != null ? Number(vtablaId) : null,
                     presv: presv,

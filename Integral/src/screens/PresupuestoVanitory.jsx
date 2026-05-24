@@ -969,22 +969,53 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver, numer
                     </div>
                   ))}
 
-                  {/* Subtotal fórmulas */}
+                  {/* Margen + Subtotal — justo debajo de la última fórmula */}
                   {slotsFormulas.length > 0 && (
                     <div style={{
-                      display:"flex", justifyContent:"space-between", alignItems:"center",
                       marginTop:8, padding:"10px 14px",
-                      background:"linear-gradient(90deg,#1a3a5c,#0f2944)",
+                      background:"#f0f7f0", border:"1px solid #b8dfc8",
                       borderRadius:7
                     }}>
-                      <span style={{
-                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:11,
-                        letterSpacing:"0.14em", color:"#7ab2d4", textTransform:"uppercase"
-                      }}>Subtotal fórmulas</span>
-                      <span style={{
-                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:20,
-                        color:"#60b4f0"
-                      }}>{formatPeso(totalSlots)}</span>
+                      <div style={{
+                        display:"flex", justifyContent:"space-between", alignItems:"center",
+                        marginBottom:6
+                      }}>
+                        <span style={{
+                          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:11,
+                          letterSpacing:"0.14em", color:"#16a34a", textTransform:"uppercase"
+                        }}>📈 MARGEN (%)</span>
+                        {margenBD !== null && (
+                          <span style={{
+                            fontSize:"10px", fontWeight:600,
+                            background: Number(form.margen) !== margenBD ? "#fff3cd" : "#eaf3fb",
+                            color: Number(form.margen) !== margenBD ? "#856404" : "#2d7fc1",
+                            border: `1px solid ${Number(form.margen) !== margenBD ? "#ffc107" : "#b8d6ef"}`,
+                            borderRadius:"4px", padding:"1px 7px", cursor: Number(form.margen) !== margenBD ? "pointer" : "default",
+                          }}
+                          onClick={() => Number(form.margen) !== margenBD && setForm(p => ({ ...p, margen: margenBD }))}
+                          title={Number(form.margen) !== margenBD ? `Restaurar BD (${margenBD}%)` : "Valor de BD"}>
+                            {Number(form.margen) !== margenBD ? `⚠️ BD: ${margenBD}% — restaurar` : `📊 BD: ${margenBD}%`}
+                          </span>
+                        )}
+                      </div>
+                      <input className="input" type="number" min="0" step="0.5" value={form.margen}
+                        onChange={e => setForm({ ...form, margen: Number(e.target.value) })}
+                        style={{marginBottom:10}} />
+                      <div style={{
+                        display:"flex", justifyContent:"space-between", alignItems:"center",
+                        marginTop:4, padding:"8px 12px",
+                        background:"linear-gradient(90deg,#1a3a5c,#0f2944)",
+                        borderRadius:5
+                      }}>
+                        <span style={{
+                          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:11,
+                          letterSpacing:"0.14em", color:"#7ab2d4", textTransform:"uppercase"
+                        }}>Subtotal</span>
+                        <span style={{
+                          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:20,
+                          color:"#60b4f0"
+                        }}>{formatPeso(baseMargen + totalMargen)}</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1016,40 +1047,11 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver, numer
                   onChange={e => setForm({ ...form, colocacion: Number(e.target.value) })} />
               </div>
 
-              {/* Margen */}
-              <div className="field">
-                <span className="label-text" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span>MARGEN (%)</span>
-                  {margenBD !== null && (
-                    <span style={{
-                      fontSize:"10px", fontWeight:600,
-                      background: Number(form.margen) !== margenBD ? "#fff3cd" : "#eaf3fb",
-                      color: Number(form.margen) !== margenBD ? "#856404" : "#2d7fc1",
-                      border: `1px solid ${Number(form.margen) !== margenBD ? "#ffc107" : "#b8d6ef"}`,
-                      borderRadius:"4px", padding:"1px 7px", cursor: Number(form.margen) !== margenBD ? "pointer" : "default",
-                    }}
-                    onClick={() => Number(form.margen) !== margenBD && setForm(p => ({ ...p, margen: margenBD }))}
-                    title={Number(form.margen) !== margenBD ? `Restaurar BD (${margenBD}%)` : "Valor de BD"}>
-                      {Number(form.margen) !== margenBD ? `⚠️ BD: ${margenBD}% — restaurar` : `📊 BD: ${margenBD}%`}
-                    </span>
-                  )}
-                </span>
-                <input className="input" type="number" min="0" step="0.5" value={form.margen}
-                  onChange={e => setForm({ ...form, margen: Number(e.target.value) })} />
-              </div>
-
               {/* Breakdown */}
               <div className="breakdown">
                 {calculando && (
                   <div style={{padding:"8px 16px",fontSize:"12px",color:"#4a8ab5",fontStyle:"italic",borderBottom:"1px solid #e0eaf2"}}>
                     ⏳ Recalculando...
-                  </div>
-                )}
-
-                {totalSlots > 0 && (
-                  <div className="breakdown-row" style={{color:"#2d7fc1"}}>
-                    <span>🧮 Fórmulas BD ({slotsFormulas.length} ítems)</span>
-                    <span>{formatPeso(totalSlots)}</span>
                   </div>
                 )}
                 {totalCorredera > 0 && (
@@ -1058,14 +1060,12 @@ export default function PresupuestoVanitory({ modelo: modeloRaw, onVolver, numer
                     <span>{formatPeso(totalCorredera)}</span>
                   </div>
                 )}
-                {totalMargen > 0 && (
-                  <div className="breakdown-row" style={{color:"#16a34a"}}>
-                    <span>📈 Margen ({form.margen}%)</span>
-                    <span>{formatPeso(totalMargen)}</span>
-                  </div>
-                )}
+                <div className="breakdown-row" style={{fontWeight:600}}>
+                  <span>Subtotal</span>
+                  <span>{formatPeso(baseMargen + totalMargen)}</span>
+                </div>
                 {Number(form.colocacion) > 0 && (
-                  <div className="breakdown-row">
+                  <div className="breakdown-row" style={{borderTop:"1px solid #e0eaf3", paddingTop:6}}>
                     <span>Colocación</span>
                     <span>{formatPeso(form.colocacion)}</span>
                   </div>

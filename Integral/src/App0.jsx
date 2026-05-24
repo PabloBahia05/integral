@@ -42,7 +42,7 @@ const buttons = [
   { id: 6, label: "PRESUP. NUEVO", icon: "📝", color: "#ff9a3c", screen: "presupuesto-nuevo" },
   { id: 7, label: "VER TABLAS", icon: "🗃️", color: "#00c9a7", screen: "ver-tablas" },
   { id: 8, label: "PRESUP. MAMPARAS", icon: "📋", color: "#4361ee", screen: "presupuestos-tabla" },
-  { id: 11, label: "PRESUP. AMOBLAMIENTO", icon: "🪑", color: "#7b61ff", screen: "presupuesto-amoblamiento" },
+  { id: 11, label: "LISTA PRESUPUESTOS", icon: "🪑", color: "#7b61ff", screen: "presupuestos-nuevo-tabla" },
   { id: 12, label: "MUEBLE ESPECIAL",      icon: "🪚", color: "#e67e22", screen: "mueble-especial" },
 ];
 

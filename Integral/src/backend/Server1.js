@@ -60,18 +60,33 @@ app.post("/api/upload-imagen", upload.single("imagen"), (req, res) => {
   Readable.from(req.file.buffer).pipe(stream);
 });
 
+app.post("/api/upload-imagen-proveedor", upload.single("imagen"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No se recibió imagen" });
+  const stream = cloudinary.uploader.upload_stream(
+    { folder: "proveedores" },
+    (error, result) => {
+      if (error) return res.status(500).json({ error: "Error al subir imagen" });
+      res.json({ url: result.secure_url });
+    }
+  );
+  Readable.from(req.file.buffer).pipe(stream);
+});
+
 // ───────────────────────────────────────────
 // MYSQL
 // ───────────────────────────────────────────
 
-const db = mysql.createConnection({
+const db = mysql.createPool({
   host: "localhost",
   user: "root",
   password: "Valentino3101",
   database: "diagrama1",
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
-db.connect((err) => {
+db.query("SELECT 1", (err) => {
   if (err) throw err;
   console.log("MySQL conectado");
 });
@@ -1223,8 +1238,9 @@ const extractArtValores = (body) => {
 // GET todos — devuelve solo la revisión más reciente de cada número
 app.get("/presupuestos-mamparas", (req, res) => {
   db.query(
-    `SELECT p.*
+    `SELECT p.*, COALESCE(c.nombre, p.codcliente) AS NOMBRE
      FROM PRESUPUESTOS_MAMPARAS p
+     LEFT JOIN clientes c ON c.codcliente = p.codcliente
      INNER JOIN (
        SELECT COALESCE(presm, id) AS num, MAX(REVISION) AS max_rev
        FROM PRESUPUESTOS_MAMPARAS
@@ -1256,13 +1272,19 @@ app.get("/presupuestos-mamparas/proximo-numero", (req, res) => {
 // GET todas las revisiones de un número de presupuesto
 app.get("/presupuestos-mamparas/:id", (req, res) => {
   const { id } = req.params;
+  // Busca por presm (ej: "M00007") o por id numérico, trae nombre del cliente
   db.query(
-    "SELECT * FROM presupuestos_mamparas WHERE id = ? LIMIT 1",
-    [id],
+    `SELECT m.*, c.nombre AS nombre_cliente
+     FROM presupuestos_mamparas m
+     LEFT JOIN clientes c ON c.codcliente = m.codcliente
+     WHERE m.presm = ? OR m.id = ?
+     ORDER BY m.revision DESC LIMIT 1`,
+    [id, isNaN(id) ? -1 : Number(id)],
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
       if (!rows.length) return res.status(404).json({ error: "No encontrado" });
-      res.json(rows[0]);
+      const row = rows[0];
+      res.json({ ...row, NOMBRE: row.nombre_cliente ?? "" });
     }
   );
 });
@@ -1767,6 +1789,62 @@ app.get("/tabla-presupuestos/proximo-numero", (req, res) => {
 });
 
 // GET items de tabla_presupuestos (filtrable por numeropres y revision)
+// GET encabezados: última revisión por numeropres, con totales calculados en SQL
+// Reemplaza tabla_indice para la vista de lista de presupuestos
+app.get("/tabla-presupuestos/encabezados", (req, res) => {
+  const sql = `
+    SELECT
+      t.numeropres,
+      t.revision,
+      t.codcliente,
+      c.nombre,
+      t.fecha,
+      t.linea1,
+      t.linea2,
+      t.linea3,
+      ROUND(SUM(COALESCE(t.valor1,0) * COALESCE(t.cantidad,1)), 2) AS total1,
+      ROUND(SUM(COALESCE(t.valor2,0) * COALESCE(t.cantidad,1)), 2) AS total2,
+      ROUND(SUM(COALESCE(t.valor3,0) * COALESCE(t.cantidad,1)), 2) AS total3
+    FROM tabla_presupuestos t
+    LEFT JOIN clientes c ON c.codcliente = t.codcliente
+    INNER JOIN (
+      SELECT numeropres, MAX(revision) AS max_rev
+      FROM tabla_presupuestos
+      GROUP BY numeropres
+    ) ult ON t.numeropres = ult.numeropres AND t.revision = ult.max_rev
+    GROUP BY t.numeropres, t.revision, t.codcliente, c.nombre, t.fecha, t.linea1, t.linea2, t.linea3
+    ORDER BY t.numeropres DESC
+  `;
+  db.query(sql, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(result);
+  });
+});
+
+// GET todas las revisiones de un numeropres, con totales calculados en SQL
+app.get("/tabla-presupuestos/revisiones/:numeropres", (req, res) => {
+  const { numeropres } = req.params;
+  const sql = `
+    SELECT
+      t.numeropres,
+      t.revision,
+      t.codcliente,
+      c.nombre,
+      t.fecha,
+      t.linea1,
+      ROUND(SUM(COALESCE(t.valor1,0) * COALESCE(t.cantidad,1)), 2) AS total1
+    FROM tabla_presupuestos t
+    LEFT JOIN clientes c ON c.codcliente = t.codcliente
+    WHERE t.numeropres = ?
+    GROUP BY t.numeropres, t.revision, t.codcliente, c.nombre, t.fecha, t.linea1
+    ORDER BY t.revision ASC
+  `;
+  db.query(sql, [numeropres], (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(result);
+  });
+});
+
 app.get("/tabla-presupuestos", (req, res) => {
   const { numeropres, revision } = req.query;
   let sql = "SELECT * FROM tabla_presupuestos";
@@ -1921,7 +1999,8 @@ app.post("/tabla-presupuestos", (req, res) => {
 
   // ── Paso 1: guardar encabezado en tabla_indice ───────────────────────────
   const numFinalVal = numFinal ? Number(numFinal) : null;
-  const nuevaRevision = req.body.nuevaRevision === true;
+  const nuevaRevision = !!(req.body.nuevaRevision);
+  console.log("[POST /tabla-presupuestos] numFinal:", numFinal, "| numFinalVal:", numFinalVal, "| nuevaRevision:", nuevaRevision, "| raw:", req.body.nuevaRevision, "| items:", (items ?? []).length);
 
   const ejecutarGuardado = (numeroPres, revision = 0) => {
     let primerInsert = true;
@@ -1967,15 +2046,18 @@ app.post("/tabla-presupuestos", (req, res) => {
         if (filaItem[k] === null && !camposProtegidos.has(k)) delete filaItem[k];
       });
 
-      db.query("INSERT INTO tabla_presupuestos SET ?", filaItem, (err2) => {
-        if (err2 && !errGlobal) {
-          errGlobal = err2;
+      console.log("[tabla-presupuestos] intentando INSERT filaItem:", JSON.stringify(filaItem));
+      db.query("INSERT INTO tabla_presupuestos SET ?", filaItem, (err2, result2) => {
+        if (err2) {
+          if (!errGlobal) errGlobal = err2;
           console.error(
             "Error INSERT tabla_presupuestos:",
             err2.message,
             "| fila:",
             JSON.stringify(filaItem),
           );
+        } else {
+          console.log("[tabla-presupuestos] INSERT OK insertId:", result2.insertId, "affectedRows:", result2.affectedRows);
         }
         // Si el item es mampara, actualizar numeropres en presupuestos_mamparas
 

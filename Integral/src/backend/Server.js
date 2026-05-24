@@ -60,6 +60,18 @@ app.post("/api/upload-imagen", upload.single("imagen"), (req, res) => {
   Readable.from(req.file.buffer).pipe(stream);
 });
 
+app.post("/api/upload-imagen-proveedor", upload.single("imagen"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No se recibió imagen" });
+  const stream = cloudinary.uploader.upload_stream(
+    { folder: "proveedores" },
+    (error, result) => {
+      if (error) return res.status(500).json({ error: "Error al subir imagen" });
+      res.json({ url: result.secure_url });
+    }
+  );
+  Readable.from(req.file.buffer).pipe(stream);
+});
+
 // ───────────────────────────────────────────
 // MYSQL
 // ───────────────────────────────────────────
@@ -2301,6 +2313,279 @@ app.delete("/proveedores/:id", (req, res) => {
     res.json({ deleted: req.params.id });
   });
 });
+// ───────────────────────────────────────────
+// FACTURAS  (tablas: facturas + facturas_items)
+//
+// Worker OCR Python en localhost:5001:
+//   pip install flask flask-cors pillow pytesseract
+//   python ocr_worker.py
+//
+// Dependencias Node adicionales:
+//   npm install node-fetch form-data
+// ───────────────────────────────────────────
+
+// ── Upload imagen de factura ─────────────────────────────────────────────────
+app.post("/api/upload-imagen-factura", upload.single("imagen"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No se recibió imagen" });
+  const stream = cloudinary.uploader.upload_stream(
+    { folder: "facturas" },
+    (error, result) => {
+      if (error) return res.status(500).json({ error: "Error al subir imagen" });
+      res.json({ url: result.secure_url });
+    }
+  );
+  Readable.from(req.file.buffer).pipe(stream);
+});
+
+// ── OCR: sube imagen a Cloudinary, llama al worker Python y persiste ─────────
+// ── OCR PREVIEW: solo extrae datos, NO inserta en BD ────────────────────────
+// El frontend llama esto primero para mostrar los datos al usuario.
+// Cuando el usuario confirma, el POST /facturas normal hace la inserción.
+app.post("/facturas/ocr-preview", upload.single("imagen"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No se recibió imagen" });
+
+  try {
+    // 1. Subir imagen a Cloudinary para tener la URL lista
+    const imagenUrl = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "facturas" },
+        (err, result) => (err ? reject(err) : resolve(result.secure_url))
+      );
+      Readable.from(req.file.buffer).pipe(stream);
+    });
+
+    // 2. Mandar al worker OCR
+    const FormData = (await import("form-data")).default;
+    const fetch    = (await import("node-fetch")).default;
+
+    const form = new FormData();
+    form.append("imagen", req.file.buffer, {
+      filename:    req.file.originalname,
+      contentType: req.file.mimetype,
+    });
+
+    const ocrRes = await fetch("http://localhost:5001/ocr", {
+      method:  "POST",
+      body:    form,
+      headers: form.getHeaders(),
+    });
+
+    if (!ocrRes.ok) {
+      const txt = await ocrRes.text();
+      return res.status(502).json({ error: "Error en worker OCR: " + txt });
+    }
+
+    const { factura, items } = await ocrRes.json();
+
+    // 3. Devolver datos extraídos + imagenUrl, SIN insertar nada en BD
+    res.json({ factura, items, imagenUrl });
+
+  } catch (e) {
+    console.error("[/facturas/ocr-preview]", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/facturas/ocr", upload.single("imagen"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No se recibió imagen" });
+  try {
+    // 1. Subir imagen a Cloudinary
+    const imagenUrl = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "facturas" },
+        (err, result) => (err ? reject(err) : resolve(result.secure_url))
+      );
+      Readable.from(req.file.buffer).pipe(stream);
+    });
+
+    // 2. Llamar al worker OCR Python
+    const { default: FormData } = await import("form-data");
+    const { default: fetch }    = await import("node-fetch");
+    const form = new FormData();
+    form.append("imagen", req.file.buffer, {
+      filename: req.file.originalname,
+      contentType: req.file.mimetype,
+    });
+    const ocrRes = await fetch("http://localhost:5001/ocr", {
+      method: "POST", body: form, headers: form.getHeaders(),
+    });
+    if (!ocrRes.ok) return res.status(502).json({ error: "Error worker OCR: " + await ocrRes.text() });
+    const { factura: facturaOcr, items: itemsOcr } = await ocrRes.json();
+
+    // 3. Insertar en tabla facturas
+    const facturaRow = {
+      proveedor_id:   req.body.proveedor_id ? Number(req.body.proveedor_id) : null,
+      numero:         facturaOcr.numero         ?? null,
+      fecha:          facturaOcr.fecha           ?? null,
+      condicion_iva:  facturaOcr.condicion_iva   ?? null,
+      condicion_pago: facturaOcr.condicion_pago  ?? null,
+      subtotal:       facturaOcr.subtotal         ?? null,
+      iva:            facturaOcr.iva              ?? null,
+      total:          facturaOcr.total            ?? null,
+      moneda:         facturaOcr.moneda           ?? "ARS",
+      imagen_path:    imagenUrl,
+      raw_json:       JSON.stringify(facturaOcr),
+    };
+
+    db.query("INSERT INTO facturas SET ?", facturaRow, (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      const facturaId = result.insertId;
+
+      if (!itemsOcr || itemsOcr.length === 0)
+        return res.json({ facturaId, facturaRow: { id: facturaId, ...facturaRow }, items: [] });
+
+      // 4. Insertar ítems en facturas_items
+      const proveedorId = req.body.proveedor_id ? Number(req.body.proveedor_id) : null;
+      const rows = itemsOcr.map((it) => [
+        facturaId,
+        proveedorId,
+        facturaOcr.fecha ?? null,
+        it.codigo        ?? null,
+        it.descripcion   ?? null,
+        parseFloat(it.cantidad)    || null,
+        parseFloat(it.precio_unit) || null,
+        parseFloat(it.subtotalprod ?? it.subtotal) || null,
+      ]);
+      db.query(
+        "INSERT INTO facturas_items (factura_id, proveedor_id, fecha, codigo, descripcion, cantidad, precio_unit, subtotalprod) VALUES ?",
+        [rows],
+        (err2) => {
+          if (err2) return res.status(500).json({ error: err2.message });
+          res.json({ facturaId, facturaRow: { id: facturaId, ...facturaRow }, items: itemsOcr });
+        }
+      );
+    });
+  } catch (e) {
+    console.error("[/facturas/ocr]", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /facturas — lista con nombre de proveedor ────────────────────────────
+app.get("/facturas", (req, res) => {
+  db.query(
+    `SELECT f.*, p.provnombre AS proveedor_nombre
+     FROM facturas f
+     LEFT JOIN proveedor p ON p.id = f.proveedor_id
+     ORDER BY f.id DESC`,
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    }
+  );
+});
+
+// ── GET /facturas/:id — cabecera + ítems ─────────────────────────────────────
+app.get("/facturas/:id", (req, res) => {
+  const { id } = req.params;
+  db.query(
+    `SELECT f.*, p.provnombre AS proveedor_nombre
+     FROM facturas f
+     LEFT JOIN proveedor p ON p.id = f.proveedor_id
+     WHERE f.id = ? LIMIT 1`,
+    [id],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!rows.length) return res.status(404).json({ error: "No encontrada" });
+      db.query(
+        "SELECT * FROM facturas_items WHERE factura_id = ? ORDER BY id",
+        [id],
+        (err2, items) => {
+          if (err2) return res.status(500).json({ error: err2.message });
+          res.json({ ...rows[0], items });
+        }
+      );
+    }
+  );
+});
+
+// ── POST /facturas — crear manualmente ───────────────────────────────────────
+app.post("/facturas", (req, res) => {
+  const { id, items, ...factura } = req.body;
+  db.query("INSERT INTO facturas SET ?", factura, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const facturaId = result.insertId;
+    if (!items || items.length === 0)
+      return res.json({ id: facturaId, ...factura, items: [] });
+    const rows = items.map((it) => [
+      facturaId,
+      factura.proveedor_id ?? null,
+      factura.fecha        ?? null,
+      it.codigo            ?? null,
+      it.descripcion       ?? null,
+      parseFloat(it.cantidad)    || null,
+      parseFloat(it.precio_unit) || null,
+      parseFloat(it.subtotalprod ?? it.subtotal) || null,
+    ]);
+    db.query(
+      "INSERT INTO facturas_items (factura_id, proveedor_id, fecha, codigo, descripcion, cantidad, precio_unit, subtotalprod) VALUES ?",
+      [rows],
+      (err2) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        res.json({ id: facturaId, ...factura });
+      }
+    );
+  });
+});
+
+// ── PUT /facturas/:id — editar cabecera ──────────────────────────────────────
+app.put("/facturas/:id", (req, res) => {
+  const { id } = req.params;
+  const { id: _id, items, ...factura } = req.body;
+  db.query("UPDATE facturas SET ? WHERE id = ?", [factura, id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id, ...factura });
+  });
+});
+
+// ── DELETE /facturas/:id — eliminar factura + sus ítems ──────────────────────
+app.delete("/facturas/:id", (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM facturas_items WHERE factura_id = ?", [id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    db.query("DELETE FROM facturas WHERE id = ?", [id], (err2) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      res.json({ deleted: id });
+    });
+  });
+});
+
+// ── CRUD facturas_items ───────────────────────────────────────────────────────
+app.get("/facturas-items/:factura_id", (req, res) => {
+  db.query(
+    "SELECT * FROM facturas_items WHERE factura_id = ? ORDER BY id",
+    [req.params.factura_id],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    }
+  );
+});
+
+app.post("/facturas-items", (req, res) => {
+  const { id, ...item } = req.body;
+  db.query("INSERT INTO facturas_items SET ?", item, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id: result.insertId, ...item });
+  });
+});
+
+app.put("/facturas-items/:id", (req, res) => {
+  const { id } = req.params;
+  const { id: _id, ...item } = req.body;
+  db.query("UPDATE facturas_items SET ? WHERE id = ?", [item, id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id, ...item });
+  });
+});
+
+app.delete("/facturas-items/:id", (req, res) => {
+  db.query("DELETE FROM facturas_items WHERE id = ?", [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ deleted: req.params.id });
+  });
+});
+
 // ───────────────────────────────────────────
 
 app.listen(3001, () => {

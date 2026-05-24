@@ -14,6 +14,7 @@ import PresupuestoAmoblamiento from "./screens/PresupuestoAmoblamiento";
 import PresupuestoNuevo from "./screens/PresupuestoNuevo";
 import PresupuestosNuevoTabla from "./screens/PresupuestosNuevoTabla";
 import MuebleEspecial from "./screens/MuebleEspecial";
+import Facturas from "./screens/Facturas";
 import ActionButton from "./Component/ActionButton";
 import { useEffect, useState } from "react";
 
@@ -33,6 +34,7 @@ const SCREENS = {
   "lista-margenes":       { label: "LISTA DE MÁRGENES", icon: "📊" },
   "presupuestos-nuevo-tabla": { label: "PRESUPUESTOS", icon: "📋" },
   "mueble-especial":      { label: "MUEBLE ESPECIAL", icon: "🪚" },
+  "facturas":             { label: "FACTURAS", icon: "🧾" },
 };
 
 const buttons = [
@@ -44,6 +46,7 @@ const buttons = [
   { id: 8, label: "PRESUP. MAMPARAS", icon: "📋", color: "#4361ee", screen: "presupuestos-tabla" },
   { id: 11, label: "LISTA PRESUPUESTOS", icon: "🪑", color: "#7b61ff", screen: "presupuestos-nuevo-tabla" },
   { id: 12, label: "MUEBLE ESPECIAL",      icon: "🪚", color: "#e67e22", screen: "mueble-especial" },
+  { id: 13, label: "FACTURAS",             icon: "🧾", color: "#27ae60", screen: "facturas" },
 ];
 
 export default function App() {
@@ -438,6 +441,7 @@ export default function App() {
               "ver-tablas",
               "lista-margenes",
               "mueble-especial",
+              "facturas",
             ].map((s) => (
               <button
                 key={s}
@@ -615,6 +619,11 @@ export default function App() {
             {/* ── Mueble Especial ── */}
             {screen === "mueble-especial" && <MuebleEspecial />}
 
+            {/* ── Facturas ── */}
+            {screen === "facturas" && (
+              <Facturas proveedores={proveedores} />
+            )}
+
             {/* ── Lista de Márgenes ── */}
             {screen === "lista-margenes" && (
               <Lista
@@ -682,6 +691,7 @@ export default function App() {
         <p onClick={() => setScreen("presupuesto-vanitory")}>🚿 Presupuesto Vanitory</p>
         <p onClick={() => setScreen("productos")}>🛒 Productos</p>
         <p onClick={() => { setScreen("lista-margenes"); fetchListas(); }}>📊 Lista de Márgenes</p>
+        <p onClick={() => setScreen("facturas")}>🧾 Facturas</p>
         <p>⚙️ Configuración</p>
         <p>📊 Reportes</p>
       </div>

@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "form-data": "^4.0.5",
+    "node-fetch": "^3.3.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

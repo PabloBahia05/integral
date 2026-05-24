@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ScreenHeader from "../Component/ScreenHeader";
 
 const EMPTY = {
@@ -17,6 +17,19 @@ const EMPTY = {
   cod_postal: "",
   descuento: "",
   flete: false,
+  foto: "",
+  imagen_path: "",
+  // Modelo de factura
+  factmod: "",
+  ancla_numero: "",
+  ancla_fecha: "",
+  ancla_total: "",
+  ancla_proveedor: "",
+  ancla_iva: "",
+  ancla_items: "",
+  ancla_codigo: "",
+  ancla_cantidad: "",
+  ancla_precio_unit: "",
 };
 
 const TIPO_COLORS = {
@@ -88,6 +101,134 @@ const FIELDS = [
   { label: "Descuento (%)", name: "descuento", placeholder: "0.00" },
 ];
 
+async function uploadImagenProveedor(file) {
+  const formData = new FormData();
+  formData.append("imagen", file);
+  const res = await fetch("http://localhost:3001/api/upload-imagen-proveedor", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error("Error al subir imagen");
+  return (await res.json()).url;
+}
+
+async function uploadFactmodImagen(file) {
+  const formData = new FormData();
+  formData.append("imagen", file);
+  const res = await fetch("http://localhost:3001/api/upload-imagen", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error("Error al subir imagen modelo");
+  return (await res.json()).url;
+}
+
+function FotoUpload({ value, onChange }) {
+  const [dragging, setDragging] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const inputRef = useRef(null);
+  const processFile = async (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    setLoading(true); setError("");
+    try { onChange(await uploadImagenProveedor(file)); }
+    catch { setError("No se pudo subir la imagen."); }
+    finally { setLoading(false); }
+  };
+  return (
+    <div className="form-field">
+      <label className="form-label">Foto del proveedor</label>
+      <div
+        className={`foto-dropzone${dragging ? " foto-dropzone--active" : ""}`}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); processFile(e.dataTransfer.files[0]); }}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onClick={() => !loading && inputRef.current.click()}
+      >
+        {loading
+          ? <div className="foto-placeholder"><span className="foto-hint">⏳ Subiendo...</span></div>
+          : value
+            ? <img src={value} alt="Factura modelo" className="foto-preview" />
+            : <div className="foto-placeholder">
+                <span className="foto-icon">🧾</span>
+                <span className="foto-hint">{dragging ? "Soltá aquí" : "Arrastrá o hacé clic"}</span>
+              </div>}
+        <input ref={inputRef} type="file" accept="image/*" style={{ display: "none" }}
+          onChange={(e) => processFile(e.target.files[0])} />
+      </div>
+      {error && <p style={{ color: "red", fontSize: "0.8rem", marginTop: 4 }}>{error}</p>}
+      <input type="text" className="form-input" style={{ marginTop: "6px" }}
+        placeholder="O pegá una URL: https://..."
+        value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
+      {value && (
+        <button type="button" className="btn-cancel"
+          style={{ marginTop: "6px", fontSize: "0.8rem", padding: "4px 10px" }}
+          onClick={() => onChange("")}>Quitar imagen</button>
+      )}
+    </div>
+  );
+}
+
+const ANCLA_FIELDS = [
+  { label: "Número de factura", name: "ancla_numero",     placeholder: 'Ej: "N°", "Factura N°", "Comprobante"',        icon: "🔢" },
+  { label: "Fecha",             name: "ancla_fecha",      placeholder: 'Ej: "Fecha:", "Fecha de emisión"',              icon: "📅" },
+  { label: "Proveedor / Emisor",name: "ancla_proveedor",  placeholder: 'Ej: razón social tal como aparece en factura',  icon: "🏭" },
+  { label: "Total",             name: "ancla_total",      placeholder: 'Ej: "Total:", "TOTAL A PAGAR"',                 icon: "💰" },
+  { label: "IVA",               name: "ancla_iva",        placeholder: 'Ej: "I.V.A. 21%", "IVA"',                      icon: "%" },
+  { label: "Ítems / Descripción",name: "ancla_items",     placeholder: 'Ej: "Descripción", "Concepto", "Detalle"',      icon: "📋" },
+  { label: "Código de artículo", name: "ancla_codigo",    placeholder: 'Ej: "Código", "Cód.", "SKU", "Art."',           icon: "🏷️" },
+  { label: "Cantidad",           name: "ancla_cantidad",  placeholder: 'Ej: "Cant.", "Cantidad", "Unid."',              icon: "🔢" },
+  { label: "Precio unitario",    name: "ancla_precio_unit",placeholder: 'Ej: "Precio unit.", "P. Unit", "Valor"',       icon: "💲" },
+];
+
+function FactmodUpload({ value, onChange }) {
+  const [dragging, setDragging] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const inputRef = useRef(null);
+
+  const processFile = async (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    setLoading(true); setError("");
+    try { onChange(await uploadFactmodImagen(file)); }
+    catch { setError("No se pudo subir la imagen modelo."); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="form-field">
+      <label className="form-label">Imagen modelo</label>
+      <div
+        className={`foto-dropzone${dragging ? " foto-dropzone--active" : ""}`}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); processFile(e.dataTransfer.files[0]); }}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onClick={() => !loading && inputRef.current.click()}
+      >
+        {loading
+          ? <div className="foto-placeholder"><span className="foto-hint">⏳ Subiendo...</span></div>
+          : value
+            ? <img src={value} alt="Factura modelo" className="foto-preview" />
+            : <div className="foto-placeholder">
+                <span className="foto-icon">🧾</span>
+                <span className="foto-hint">{dragging ? "Soltá aquí" : "Arrastrá o hacé clic"}</span>
+              </div>}
+        <input ref={inputRef} type="file" accept="image/*" style={{ display: "none" }}
+          onChange={(e) => processFile(e.target.files[0])} />
+      </div>
+      {error && <p style={{ color: "red", fontSize: "0.8rem", marginTop: 4 }}>{error}</p>}
+      <input type="text" className="form-input" style={{ marginTop: "6px" }}
+        placeholder="O pegá una URL: https://..."
+        value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
+      {value && (
+        <button type="button" className="btn-cancel"
+          style={{ marginTop: "6px", fontSize: "0.8rem", padding: "4px 10px" }}
+          onClick={() => onChange("")}>Quitar imagen</button>
+      )}
+    </div>
+  );
+}
+
 export default function Proveedores({
   proveedores = [],
   selected,
@@ -133,7 +274,17 @@ export default function Proveedores({
 
   const handleGuardar = () => {
     if (!form.provnombre?.trim()) return alert("El nombre del proveedor es obligatorio.");
-    const payload = { ...form, cuit: form.cuit || null };
+    const payload = {
+      ...form,
+      cuit: form.cuit || null,
+      factmod: form.factmod || null,
+      ancla_numero: form.ancla_numero || null,
+      ancla_fecha: form.ancla_fecha || null,
+      ancla_total: form.ancla_total || null,
+      ancla_proveedor: form.ancla_proveedor || null,
+      ancla_iva: form.ancla_iva || null,
+      ancla_items: form.ancla_items || null,
+    };
     if (modal === "crear") onAdd(payload);
     else onEdit({ ...selected, ...payload });
     onCloseModal();
@@ -439,6 +590,14 @@ export default function Proveedores({
                   <option value="E">E</option>
                 </select>
               </label>
+              {/* Foto perfil del proveedor */}
+              <div style={{ gridColumn: "1 / -1" }}>
+                <FotoUpload
+                  value={form.foto ?? ""}
+                  onChange={(url) => setForm((prev) => ({ ...prev, foto: url }))}
+                />
+              </div>
+
               {/* Flete — tinyint(1) */}
               <label style={{ display: "flex", alignItems: "center", gap: "0.6rem", cursor: "pointer", gridColumn: "1 / -1", marginTop: "0.25rem" }}>
                 <input
@@ -450,6 +609,98 @@ export default function Proveedores({
                 />
                 <span style={{ fontSize: "0.875rem", color: "#94a3b8", fontWeight: 500 }}>Tiene flete</span>
               </label>
+            </div>
+
+            {/* ── Sección: Modelo de Factura ── */}
+            <div style={{
+              marginTop: "1.75rem",
+              borderTop: "1px solid #1e3a5f",
+              paddingTop: "1.5rem",
+            }}>
+              {/* Encabezado de sección */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1.25rem" }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 8,
+                  background: "#1c1204", border: "1px solid #92400e55",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "1rem",
+                }}>🧾</div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700, color: "#d97706" }}>
+                    Modelo de Factura
+                  </h3>
+                  <p style={{ margin: 0, fontSize: "0.75rem", color: "#78350f" }}>
+                    Subí una factura de ejemplo y completá las palabras clave que el OCR va a buscar
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+                {/* Columna izquierda: imagen modelo */}
+                <div>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "#92400e", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: "0.4rem" }}>
+                    Imagen modelo
+                  </div>
+                  <FactmodUpload
+                    value={form.factmod ?? ""}
+                    onChange={(val) => setForm((p) => ({ ...p, factmod: val }))}
+                  />
+                </div>
+
+                {/* Columna derecha: anclas */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "#92400e", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: "0.1rem" }}>
+                    Palabras ancla para OCR
+                  </div>
+                  {ANCLA_FIELDS.map(({ label, name, placeholder, icon }) => (
+                    <label key={name} style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                      <span style={{
+                        fontSize: "0.72rem", fontWeight: 600,
+                        color: focusedField === name ? "#f59e0b" : "#78350f",
+                        letterSpacing: "0.04em", textTransform: "uppercase", transition: "color 0.2s",
+                        display: "flex", alignItems: "center", gap: "0.3rem",
+                      }}>
+                        <span>{icon}</span>{label}
+                      </span>
+                      <input
+                        name={name}
+                        value={form[name] ?? ""}
+                        onChange={handleChange}
+                        placeholder={placeholder}
+                        onFocus={() => setFocusedField(name)}
+                        onBlur={() => setFocusedField(null)}
+                        style={{
+                          ...inputStyle,
+                          background: "#0d0a02",
+                          borderColor: focusedField === name ? "#f59e0b" : "#92400e55",
+                          boxShadow: focusedField === name ? "0 0 0 3px rgba(245,158,11,0.12)" : "none",
+                          fontSize: "0.8rem",
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tip informativo */}
+              <div style={{
+                marginTop: "1rem",
+                padding: "0.6rem 0.85rem",
+                background: "#0d0a02",
+                border: "1px solid #92400e33",
+                borderRadius: 8,
+                fontSize: "0.75rem",
+                color: "#92400e",
+                display: "flex",
+                gap: "0.5rem",
+                alignItems: "flex-start",
+              }}>
+                <span style={{ flexShrink: 0 }}>💡</span>
+                <span>
+                  Las anclas son los textos que aparecen <em>cerca</em> del valor en la factura real.
+                  Cuanto más exactas, mejor extrae el OCR. Si una factura no tiene IVA separado, podés dejarlo vacío.
+                </span>
+              </div>
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.75rem", paddingTop: "1rem", borderTop: "1px solid #1e3a5f" }}>
