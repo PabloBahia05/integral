@@ -104,6 +104,77 @@ const ahora = () => {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 
+// ── Helper: resuelve el código OCR al codartprov de BD ───────────────────────
+// 1) Busca código OCR en articulos.codartprov → encontrado: devuelve ese codartprov (pisa)
+// 2) Si no, busca descripción OCR en articulos.prod_prov → encontrado: devuelve codartprov (pisa)
+// 3) Si tampoco encuentra → devuelve el código original sin modificar + resuelto:false
+const resolverCodigo = (codigo, descripcion, proveedorId) =>
+  new Promise((resolve) => {
+
+    // Paso 1: buscar código OCR en articulos.codartprov
+    if (codigo && codigo.trim()) {
+      const sql = proveedorId
+        ? "SELECT codartprov FROM articulos WHERE codartprov = ? AND proveedor = (SELECT provnombre FROM proveedor WHERE id = ? LIMIT 1) LIMIT 1"
+        : "SELECT codartprov FROM articulos WHERE codartprov = ? LIMIT 1";
+      const params = proveedorId ? [codigo.trim(), proveedorId] : [codigo.trim()];
+
+      db.query(sql, params, (err, rows) => {
+        if (!err && rows.length > 0) {
+          // Encontró el registro — codartprov puede ser el mismo código que ya teníamos
+          const cod = rows[0].codartprov || codigo.trim();
+          console.log(`[resolverCodigo] código "${codigo}" → encontrado en codartprov, devuelve "${cod}"`);
+          return resolve({ codartprov: cod, resuelto: true });
+        }
+
+        // Paso 2: buscar descripción OCR en articulos.prod_prov
+        buscarPorProdProv(descripcion, proveedorId, resolve, codigo);
+      });
+    } else {
+      // Sin código OCR → ir directo a buscar por descripción
+      buscarPorProdProv(descripcion, proveedorId, resolve, null);
+    }
+  });
+
+const buscarPorProdProv = (descripcion, proveedorId, resolve, codigoOriginal) => {
+  if (!descripcion || !descripcion.trim()) {
+    console.log(`[resolverCodigo] sin código ni descripción → no resuelto`);
+    return resolve({ codartprov: codigoOriginal, resuelto: false });
+  }
+
+  const sql = proveedorId
+    ? "SELECT codartprov FROM articulos WHERE prod_prov = ? AND proveedor = (SELECT provnombre FROM proveedor WHERE id = ? LIMIT 1) LIMIT 1"
+    : "SELECT codartprov FROM articulos WHERE prod_prov = ? LIMIT 1";
+  const params = proveedorId ? [descripcion.trim(), proveedorId] : [descripcion.trim()];
+
+  db.query(sql, params, (err, rows) => {
+    if (!err && rows.length > 0) {
+      const cod = rows[0].codartprov || codigoOriginal;
+      console.log(`[resolverCodigo] desc "${descripcion}" → encontrado en prod_prov, devuelve codartprov="${cod}"`);
+      return resolve({ codartprov: cod, resuelto: true });
+    }
+
+    // Fallback sin filtro de proveedor si no hubo match con filtro
+    if (proveedorId) {
+      db.query(
+        "SELECT codartprov FROM articulos WHERE prod_prov = ? LIMIT 1",
+        [descripcion.trim()],
+        (err2, rows2) => {
+          if (!err2 && rows2.length > 0) {
+            const cod = rows2[0].codartprov || codigoOriginal;
+            console.log(`[resolverCodigo] desc "${descripcion}" → prod_prov sin filtro proveedor, devuelve codartprov="${cod}"`);
+            return resolve({ codartprov: cod, resuelto: true });
+          }
+          console.log(`[resolverCodigo] "${codigoOriginal ?? descripcion}" → sin coincidencia, encolado`);
+          resolve({ codartprov: codigoOriginal, resuelto: false });
+        }
+      );
+    } else {
+      console.log(`[resolverCodigo] "${codigoOriginal ?? descripcion}" → sin coincidencia, encolado`);
+      resolve({ codartprov: codigoOriginal, resuelto: false });
+    }
+  });
+};
+
 app.get("/clientes/buscar-nombre", (req, res) => {
   const { q } = req.query;
   if (!q || !q.trim()) return res.json([]);
@@ -524,13 +595,169 @@ app.get("/productos/mamparas/familias", (req, res) => {
   );
 });
 
+// ── GET /articulos/buscar-descripcion — busca por similitud en columna articulo ─
+// Compara el texto recibido contra la columna `articulo` de la tabla articulos.
+// También intenta coincidencia exacta contra `codartprov` para el caso en que
+// el código del OCR sea el código del proveedor.
+// Palabras de 2+ caracteres (filtro reducido para nombres cortos de artículos).
+// Devuelve hasta 8 coincidencias ordenadas por relevancia.
+app.get("/articulos/buscar-descripcion", (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) return res.json([]);
+
+  const termino = q.trim();
+
+  // 1) Intentar coincidencia exacta o parcial por codartprov primero
+  db.query(
+    "SELECT * FROM articulos WHERE codartprov = ? LIMIT 1",
+    [termino],
+    (err, byProv) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      if (byProv.length > 0) {
+        // Encontrado exactamente por codartprov → devolver como coincidencia única
+        return res.json(byProv);
+      }
+
+      // 2) Buscar por palabras clave en la columna articulo
+      // Filtrar palabras de al menos 2 caracteres para artículos con nombres cortos
+      const palabras = termino.split(/\s+/).filter((p) => p.length >= 2);
+      if (!palabras.length) return res.json([]);
+
+      const conditions = palabras.map(() => "articulo LIKE ?").join(" AND ");
+      const params     = palabras.map((p) => `%${p}%`);
+
+      db.query(
+        `SELECT * FROM articulos WHERE ${conditions} ORDER BY articulo LIMIT 8`,
+        params,
+        (err2, result) => {
+          if (err2) return res.status(500).json({ error: err2.message });
+          res.json(result);
+        }
+      );
+    }
+  );
+});
+
+// ── GET /articulos/diagnostico — prueba rápida desde browser ─────────────────
+// Llamar: http://localhost:PUERTO/articulos/diagnostico?q=Sad+780+18+Bianco
+app.get("/articulos/diagnostico", (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.json({ error: "Falta ?q=texto" });
+  const termino = q.trim();
+  const palabras = termino.split(/\s+/).filter(p => p.length >= 2);
+  const condPP  = palabras.map(() => "prod_prov LIKE ?").join(" AND ");
+  const condArt = palabras.map(() => "articulo LIKE ?").join(" AND ");
+  const params  = palabras.map(p => `%${p}%`);
+
+  db.query(`SELECT codartint, articulo, prod_prov FROM articulos WHERE ${condPP} LIMIT 5`, params, (e1, rPP) => {
+    db.query(`SELECT codartint, articulo, prod_prov FROM articulos WHERE ${condArt} LIMIT 5`, params, (e2, rArt) => {
+      db.query(`SELECT codartint, articulo, prod_prov FROM articulos WHERE prod_prov = ? LIMIT 3`, [termino], (e3, rExacto) => {
+        res.json({
+          termino,
+          palabras,
+          exacto_prod_prov:    rExacto || [],
+          por_palabras_prod_prov: rPP   || [],
+          por_palabras_articulo:  rArt  || [],
+        });
+      });
+    });
+  });
+});
+
+// ── GET /articulos/buscar-prod-prov — busca descripción de factura en BD ────
+// Orden de búsqueda:
+//   1) prod_prov exacto
+//   2) prod_prov por palabras clave
+//   3) articulo (nombre interno) por palabras clave  ← fallback si prod_prov vacío
+// Devuelve hasta 8 coincidencias. Loguea en consola para diagnóstico.
+app.get("/articulos/buscar-prod-prov", (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) return res.json([]);
+  const termino = q.trim();
+  console.log(`[buscar-prod-prov] q="${termino}"`);
+
+  // 1) Coincidencia exacta en prod_prov
+  db.query(
+    "SELECT * FROM articulos WHERE prod_prov = ? LIMIT 1",
+    [termino],
+    (err, exacto) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (exacto.length > 0) {
+        console.log(`[buscar-prod-prov] exacto → codartint=${exacto[0].codartint}`);
+        return res.json(exacto);
+      }
+
+      const palabras = termino.split(/\s+/).filter((p) => p.length >= 2);
+      if (!palabras.length) return res.json([]);
+
+      // 2) Palabras clave en prod_prov
+      const condPP = palabras.map(() => "prod_prov LIKE ?").join(" AND ");
+      const paramsPP = palabras.map((p) => `%${p}%`);
+      db.query(
+        `SELECT * FROM articulos WHERE prod_prov IS NOT NULL AND prod_prov != '' AND ${condPP} ORDER BY prod_prov LIMIT 8`,
+        paramsPP,
+        (err2, resPP) => {
+          if (err2) return res.status(500).json({ error: err2.message });
+          if (resPP.length > 0) {
+            console.log(`[buscar-prod-prov] por palabras en prod_prov → ${resPP.length} resultado(s)`);
+            return res.json(resPP);
+          }
+
+          // 3) Fallback: palabras clave en columna articulo (nombre interno)
+          const condArt = palabras.map(() => "articulo LIKE ?").join(" AND ");
+          const paramsArt = palabras.map((p) => `%${p}%`);
+          db.query(
+            `SELECT * FROM articulos WHERE ${condArt} ORDER BY articulo LIMIT 8`,
+            paramsArt,
+            (err3, resArt) => {
+              if (err3) return res.status(500).json({ error: err3.message });
+              console.log(`[buscar-prod-prov] fallback articulo → ${resArt.length} resultado(s)`);
+              res.json(resArt);
+            }
+          );
+        }
+      );
+    }
+  );
+});
+
+// ── GET /articulos/listas-campos — devuelve valores únicos de rubro, familia y unidad ──
+// Usado por el modal "nuevo artículo" para los SelectConFiltro
+app.get("/articulos/listas-campos", (req, res) => {
+  const q = (col) => `SELECT DISTINCT \`${col}\` FROM articulos WHERE \`${col}\` IS NOT NULL AND \`${col}\` != '' ORDER BY \`${col}\``;
+  Promise.all([
+    new Promise((ok, ko) => db.query(q("rubro"),   (e, r) => e ? ko(e) : ok(r.map((x) => x.rubro)))),
+    new Promise((ok, ko) => db.query(q("familia"), (e, r) => e ? ko(e) : ok(r.map((x) => x.familia)))),
+    new Promise((ok, ko) => db.query(q("unidad"),  (e, r) => e ? ko(e) : ok(r.map((x) => x.unidad)))),
+  ])
+    .then(([rubros, familias, unidades]) => res.json({ rubros, familias, unidades }))
+    .catch((e) => res.status(500).json({ error: e.message }));
+});
+
+// Buscar un artículo por codartprov exacto — usado por frontend al resolver facturas
+// ⚠️ DEBE ir ANTES de /:cod
+app.get("/articulos/buscar-codartprov", (req, res) => {
+  const { codartprov } = req.query;
+  if (!codartprov) return res.status(400).json({ error: "codartprov requerido" });
+  db.query(
+    "SELECT * FROM articulos WHERE codartprov = ? LIMIT 1",
+    [codartprov],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result.length ? result[0] : null);
+    }
+  );
+});
+
 // Buscar un artículo por codartint — usado por el frontend para resolver precio_XXXX en fórmulas
 // ⚠️ DEBE ir DESPUÉS de todas las rutas /articulos/xxx estáticas para que Express no las confunda
+// Busca primero por codartint, si no encuentra prueba por codartprov
 app.get("/articulos/:cod", (req, res) => {
   const { cod } = req.params;
   db.query(
-    "SELECT * FROM articulos WHERE codartint = ? LIMIT 1",
-    [cod],
+    "SELECT * FROM articulos WHERE codartint = ? OR codartprov = ? LIMIT 1",
+    [cod, cod],
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       if (!result.length)
@@ -540,20 +767,114 @@ app.get("/articulos/:cod", (req, res) => {
   );
 });
 
-app.post("/productos", (req, res) => {
-  const { id, ...item } = req.body; // excluir id para que MySQL lo autogenere
+// ── PATCH /articulos/:cod — actualiza campos de un artículo por codartint ─────
+// Usado por sync de facturas_items → articulos (ej: sumar cantidad)
+app.patch("/articulos/:cod", (req, res) => {
+  const { cod } = req.params;
+  const campos = req.body;
+  if (!campos || Object.keys(campos).length === 0)
+    return res.status(400).json({ error: "Sin campos para actualizar" });
+  const sets = Object.keys(campos).map((k) => `\`${k}\` = ?`).join(", ");
+  const vals = [...Object.values(campos), cod];
+  db.query(
+    `UPDATE articulos SET ${sets} WHERE codartint = ?`,
+    vals,
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ ok: true, codartint: cod, ...campos });
+    }
+  );
+});
+
+// ── POST /articulos — inserta artículo nuevo desde sync de facturas o Productos
+// Body: { codartint?, codartprov?, articulo, prod_prov?, proveedor?, cantidad?,
+//         area?, unidad?, rubro?, familia?, flete?, descuento?, valorlista?, ... }
+// • codartint es opcional: puede ser null si aún no se asignó código interno.
+// • prod_prov: descripción exacta tal como figura en la factura del proveedor.
+// • articulo:  si llega vacío se usa prod_prov como fallback automático.
+const ARTICULOS_CAMPOS_PERMITIDOS = new Set([
+  "codartint", "codartprov", "articulo", "prod_prov",
+  "proveedor", "cantidad", "area", "unidad",
+  "rubro", "familia", "flete", "descuento", "valorlista",
+  "costosi", "costosicf", "costocicf", "precio", "precio_un",
+  "ancho", "alto", "linea", "color", "codfam", "codrub",
+  "artfoto", "margen", "costo_placa",
+]);
+
+app.post("/articulos", (req, res) => {
+  const { id, ...body } = req.body;
+
+  // Filtrar solo columnas conocidas para evitar errores por campos extra
+  const item = Object.fromEntries(
+    Object.entries(body).filter(([k]) => ARTICULOS_CAMPOS_PERMITIDOS.has(k))
+  );
+
+  // Fallback: si articulo viene vacío, usar prod_prov
+  if (!item.articulo && item.prod_prov) {
+    item.articulo = item.prod_prov;
+  }
+  if (!item.articulo) {
+    return res.status(400).json({ error: "articulo (o prod_prov) requerido" });
+  }
+
+  // codartint puede quedar null si todavía no se asignó código interno
+  if (!item.codartint) item.codartint = null;
+
   db.query("INSERT INTO articulos SET ?", item, (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) {
+      // Mensaje claro si la columna prod_prov todavía no existe en la BD
+      if (err.code === "ER_BAD_FIELD_ERROR" && err.message.includes("prod_prov")) {
+        return res.status(500).json({
+          error:
+            "La columna prod_prov no existe en la tabla articulos. " +
+            "Ejecutá en MySQL: ALTER TABLE articulos ADD COLUMN prod_prov VARCHAR(500) NULL;",
+        });
+      }
+      return res.status(500).json({ error: err.message });
+    }
+    res.status(201).json({ id: result.insertId, ...item });
+  });
+});
+
+app.post("/productos", (req, res) => {
+  const { id, ...body } = req.body;
+  // Reutilizar la misma lista de campos permitidos que POST /articulos
+  const item = Object.fromEntries(
+    Object.entries(body).filter(([k]) => ARTICULOS_CAMPOS_PERMITIDOS.has(k))
+  );
+  if (!item.articulo && item.prod_prov) item.articulo = item.prod_prov;
+  db.query("INSERT INTO articulos SET ?", item, (err, result) => {
+    if (err) {
+      if (err.code === "ER_BAD_FIELD_ERROR" && err.message.includes("prod_prov")) {
+        return res.status(500).json({
+          error:
+            "La columna prod_prov no existe. " +
+            "Ejecutá: ALTER TABLE articulos ADD COLUMN prod_prov VARCHAR(500) NULL;",
+        });
+      }
+      return res.status(500).json({ error: err.message });
+    }
     res.json({ id: result.insertId, ...item });
   });
 });
 
 app.put("/productos/:id", (req, res) => {
   const { id } = req.params;
-  const { id: _id, ...item } = req.body;
+  const { id: _id, ...body } = req.body;
+  // Filtrar campos permitidos para evitar errores si llegan campos extra del frontend
+  const item = Object.fromEntries(
+    Object.entries(body).filter(([k]) => ARTICULOS_CAMPOS_PERMITIDOS.has(k))
+  );
   console.log(`PUT /productos/${id}`, item);
   db.query("UPDATE articulos SET ? WHERE id = ?", [item, id], (err) => {
     if (err) {
+      if (err.code === "ER_BAD_FIELD_ERROR" && err.message.includes("prod_prov")) {
+        return res.status(500).json({
+          error:
+            "La columna prod_prov no existe. " +
+            "Ejecutá: ALTER TABLE articulos ADD COLUMN prod_prov VARCHAR(500) NULL;",
+        });
+      }
       console.error("Error UPDATE articulos:", err.message);
       return res.status(500).json({ error: err.message });
     }
@@ -1606,6 +1927,108 @@ app.delete("/presupuestos-vanitory/:id", (req, res) => {
   );
 });
 
+// ───────────────────────────────────────────
+// MUEBLES_ESP  (Mueble Especial)
+// ───────────────────────────────────────────
+
+app.get("/muebles-esp/proximo-numero", (req, res) => {
+  db.query(
+    "SELECT COALESCE(MAX(id), 0) + 1 AS proximo FROM muebles_esp",
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ proximo: Number(result[0].proximo) });
+    }
+  );
+});
+
+app.get("/muebles-esp", (req, res) => {
+  db.query(
+    "SELECT * FROM muebles_esp ORDER BY id DESC",
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    }
+  );
+});
+
+app.post("/muebles-esp", (req, res) => {
+  const { id, ...item } = req.body;
+
+  // Convertir campos numéricos vacíos a null para no romper DECIMAL/INT
+  const campos = ["ancho","alto","profundidad",
+    "cajon1_ancho","cajon1_alto","cajon1_cantidad",
+    "cajon2_ancho","cajon2_alto","cajon2_cantidad",
+    "cajon3_ancho","cajon3_alto","cajon3_cantidad"];
+  campos.forEach(k => {
+    if (item[k] === "" || item[k] === undefined) item[k] = null;
+    else if (item[k] !== null) item[k] = Number(item[k]);
+  });
+
+  item.fecha = item.fecha ?? ahora();
+
+  console.log("[POST muebles-esp] keys:", Object.keys(item));
+
+  db.query("INSERT INTO muebles_esp SET ?", item, (err, result) => {
+    if (err) {
+      console.error("[POST muebles-esp] Error INSERT:", err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    const newId = result.insertId;
+    const presme = `ME${String(newId).padStart(5, "0")}`;
+
+    db.query(
+      "UPDATE muebles_esp SET presme = ? WHERE id = ?",
+      [presme, newId],
+      (errUpd) => {
+        if (errUpd) console.error("Error UPDATE muebles_esp presme:", errUpd.message);
+        db.query(
+          "SELECT presme FROM muebles_esp WHERE id = ?",
+          [newId],
+          (err2, rows) => {
+            if (err2) console.error("Error leyendo presme:", err2.message);
+            const presmeVal = (!err2 && rows.length > 0) ? rows[0].presme : presme;
+            console.log("[POST muebles-esp] id:", newId, "presme:", presmeVal);
+            res.json({ id: newId, presme: presmeVal, ...item });
+          }
+        );
+      }
+    );
+  });
+});
+
+app.put("/muebles-esp/:id", (req, res) => {
+  const { id } = req.params;
+  const { id: _id, ...item } = req.body;
+
+  const campos = ["ancho","alto","profundidad",
+    "cajon1_ancho","cajon1_alto","cajon1_cantidad",
+    "cajon2_ancho","cajon2_alto","cajon2_cantidad",
+    "cajon3_ancho","cajon3_alto","cajon3_cantidad"];
+  campos.forEach(k => {
+    if (item[k] === "" || item[k] === undefined) item[k] = null;
+    else if (item[k] !== null) item[k] = Number(item[k]);
+  });
+
+  db.query(
+    "UPDATE muebles_esp SET ? WHERE id = ?",
+    [item, id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: Number(id), ...item });
+    }
+  );
+});
+
+app.delete("/muebles-esp/:id", (req, res) => {
+  db.query(
+    "DELETE FROM muebles_esp WHERE id = ?",
+    [req.params.id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ deleted: req.params.id });
+    }
+  );
+});
 
 // ───────────────────────────────────────────
 // PRESUPUESTOS_DESPENSERO
@@ -2313,6 +2736,302 @@ app.delete("/proveedores/:id", (req, res) => {
     res.json({ deleted: req.params.id });
   });
 });
+// ───────────────────────────────────────────
+// FACTURAS  (tablas: facturas + facturas_items)
+//
+// Worker OCR Python en localhost:5001:
+//   pip install flask flask-cors pillow pytesseract
+//   python ocr_worker.py
+//
+// Dependencias Node adicionales:
+//   npm install node-fetch form-data
+// ───────────────────────────────────────────
+
+// ── Upload imagen de factura ─────────────────────────────────────────────────
+app.post("/api/upload-imagen-factura", upload.single("imagen"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No se recibió imagen" });
+  const stream = cloudinary.uploader.upload_stream(
+    { folder: "facturas" },
+    (error, result) => {
+      if (error) return res.status(500).json({ error: "Error al subir imagen" });
+      res.json({ url: result.secure_url });
+    }
+  );
+  Readable.from(req.file.buffer).pipe(stream);
+});
+
+// ── OCR: sube imagen a Cloudinary, llama al worker Python y persiste ─────────
+// ── OCR PREVIEW: solo extrae datos, NO inserta en BD ────────────────────────
+// El frontend llama esto primero para mostrar los datos al usuario.
+// Cuando el usuario confirma, el POST /facturas normal hace la inserción.
+app.post("/facturas/ocr-preview", upload.single("imagen"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No se recibió imagen" });
+
+  try {
+    // 1. Subir imagen a Cloudinary para tener la URL lista
+    const imagenUrl = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "facturas" },
+        (err, result) => (err ? reject(err) : resolve(result.secure_url))
+      );
+      Readable.from(req.file.buffer).pipe(stream);
+    });
+
+    // 2. Mandar al worker OCR
+    const FormData = (await import("form-data")).default;
+    const fetch    = (await import("node-fetch")).default;
+
+    const form = new FormData();
+    form.append("imagen", req.file.buffer, {
+      filename:    req.file.originalname,
+      contentType: req.file.mimetype,
+    });
+
+    const ocrRes = await fetch("http://localhost:5001/ocr", {
+      method:  "POST",
+      body:    form,
+      headers: form.getHeaders(),
+    });
+
+    if (!ocrRes.ok) {
+      const txt = await ocrRes.text();
+      return res.status(502).json({ error: "Error en worker OCR: " + txt });
+    }
+
+    const { factura, items } = await ocrRes.json();
+
+    // 3. Resolver códigos: buscar en codartprov → si no, en prod_prov por descripción
+    const proveedorId = req.body.proveedor_id ? Number(req.body.proveedor_id) : null;
+    const itemsResueltos = await Promise.all(
+      (items || []).map(async (it) => {
+        const { codartprov, resuelto } = await resolverCodigo(it.codigo, it.descripcion, proveedorId);
+        return { ...it, codigo: codartprov, _resuelto: resuelto };
+      })
+    );
+
+    // 4. Devolver datos extraídos + imagenUrl con códigos resueltos, SIN insertar nada en BD
+    res.json({ factura, items: itemsResueltos, imagenUrl });
+
+  } catch (e) {
+    console.error("[/facturas/ocr-preview]", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/facturas/ocr", upload.single("imagen"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No se recibió imagen" });
+  try {
+    // 1. Subir imagen a Cloudinary
+    const imagenUrl = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "facturas" },
+        (err, result) => (err ? reject(err) : resolve(result.secure_url))
+      );
+      Readable.from(req.file.buffer).pipe(stream);
+    });
+
+    // 2. Llamar al worker OCR Python
+    const { default: FormData } = await import("form-data");
+    const { default: fetch }    = await import("node-fetch");
+    const form = new FormData();
+    form.append("imagen", req.file.buffer, {
+      filename: req.file.originalname,
+      contentType: req.file.mimetype,
+    });
+    const ocrRes = await fetch("http://localhost:5001/ocr", {
+      method: "POST", body: form, headers: form.getHeaders(),
+    });
+    if (!ocrRes.ok) return res.status(502).json({ error: "Error worker OCR: " + await ocrRes.text() });
+    const { factura: facturaOcr, items: itemsOcr } = await ocrRes.json();
+
+    // 3. Insertar en tabla facturas
+    const facturaRow = {
+      proveedor_id:   req.body.proveedor_id ? Number(req.body.proveedor_id) : null,
+      numero:         facturaOcr.numero         ?? null,
+      fecha:          facturaOcr.fecha           ?? null,
+      condicion_iva:  facturaOcr.condicion_iva   ?? null,
+      condicion_pago: facturaOcr.condicion_pago  ?? null,
+      subtotal:       facturaOcr.subtotal         ?? null,
+      iva:            facturaOcr.iva              ?? null,
+      total:          facturaOcr.total            ?? null,
+      moneda:         facturaOcr.moneda           ?? "ARS",
+      imagen_path:    imagenUrl,
+      raw_json:       JSON.stringify(facturaOcr),
+    };
+
+    db.query("INSERT INTO facturas SET ?", facturaRow, async (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      const facturaId = result.insertId;
+
+      if (!itemsOcr || itemsOcr.length === 0)
+        return res.json({ facturaId, facturaRow: { id: facturaId, ...facturaRow }, items: [] });
+
+      // 4. Resolver códigos OCR → codartprov de BD
+      const proveedorId = req.body.proveedor_id ? Number(req.body.proveedor_id) : null;
+
+      try {
+        const itemsResueltos = await Promise.all(
+          itemsOcr.map(async (it) => {
+            const { codartprov, resuelto } = await resolverCodigo(it.codigo, it.descripcion, proveedorId);
+            return { ...it, codigo: codartprov, _resuelto: resuelto };
+          })
+        );
+
+        const rows = itemsResueltos.map((it) => [
+          facturaId,
+          proveedorId,
+          facturaOcr.fecha ?? null,
+          it.codigo        ?? null,
+          it.descripcion   ?? null,
+          parseFloat(it.cantidad)    || null,
+          parseFloat(it.precio_unit) || null,
+          parseFloat(it.subtotalprod ?? it.subtotal) || null,
+        ]);
+
+        db.query(
+          "INSERT INTO facturas_items (factura_id, proveedor_id, fecha, codigo, descripcion, cantidad, precio_unit, subtotalprod) VALUES ?",
+          [rows],
+          (err2) => {
+            if (err2) return res.status(500).json({ error: err2.message });
+            res.json({ facturaId, facturaRow: { id: facturaId, ...facturaRow }, items: itemsResueltos });
+          }
+        );
+      } catch (eRes) {
+        console.error("[/facturas/ocr] Error resolviendo códigos:", eRes.message);
+        res.status(500).json({ error: "Error resolviendo códigos: " + eRes.message });
+      }
+    });
+  } catch (e) {
+    console.error("[/facturas/ocr]", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /facturas — lista con nombre de proveedor ────────────────────────────
+app.get("/facturas", (req, res) => {
+  db.query(
+    `SELECT f.*, p.provnombre AS proveedor_nombre
+     FROM facturas f
+     LEFT JOIN proveedor p ON p.id = f.proveedor_id
+     ORDER BY f.id DESC`,
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    }
+  );
+});
+
+// ── GET /facturas/:id — cabecera + ítems ─────────────────────────────────────
+app.get("/facturas/:id", (req, res) => {
+  const { id } = req.params;
+  db.query(
+    `SELECT f.*, p.provnombre AS proveedor_nombre
+     FROM facturas f
+     LEFT JOIN proveedor p ON p.id = f.proveedor_id
+     WHERE f.id = ? LIMIT 1`,
+    [id],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!rows.length) return res.status(404).json({ error: "No encontrada" });
+      db.query(
+        "SELECT * FROM facturas_items WHERE factura_id = ? ORDER BY id",
+        [id],
+        (err2, items) => {
+          if (err2) return res.status(500).json({ error: err2.message });
+          res.json({ ...rows[0], items });
+        }
+      );
+    }
+  );
+});
+
+// ── POST /facturas — crear manualmente ───────────────────────────────────────
+app.post("/facturas", (req, res) => {
+  const { id, items, ...factura } = req.body;
+  db.query("INSERT INTO facturas SET ?", factura, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const facturaId = result.insertId;
+    if (!items || items.length === 0)
+      return res.json({ id: facturaId, ...factura, items: [] });
+    const rows = items.map((it) => [
+      facturaId,
+      factura.proveedor_id ?? null,
+      factura.fecha        ?? null,
+      it.codigo            ?? null,
+      it.descripcion       ?? null,
+      parseFloat(it.cantidad)    || null,
+      parseFloat(it.precio_unit) || null,
+      parseFloat(it.subtotalprod ?? it.subtotal) || null,
+    ]);
+    db.query(
+      "INSERT INTO facturas_items (factura_id, proveedor_id, fecha, codigo, descripcion, cantidad, precio_unit, subtotalprod) VALUES ?",
+      [rows],
+      (err2) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        res.json({ id: facturaId, ...factura });
+      }
+    );
+  });
+});
+
+// ── PUT /facturas/:id — editar cabecera ──────────────────────────────────────
+app.put("/facturas/:id", (req, res) => {
+  const { id } = req.params;
+  const { id: _id, items, ...factura } = req.body;
+  db.query("UPDATE facturas SET ? WHERE id = ?", [factura, id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id, ...factura });
+  });
+});
+
+// ── DELETE /facturas/:id — eliminar factura + sus ítems ──────────────────────
+app.delete("/facturas/:id", (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM facturas_items WHERE factura_id = ?", [id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    db.query("DELETE FROM facturas WHERE id = ?", [id], (err2) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      res.json({ deleted: id });
+    });
+  });
+});
+
+// ── CRUD facturas_items ───────────────────────────────────────────────────────
+app.get("/facturas-items/:factura_id", (req, res) => {
+  db.query(
+    "SELECT * FROM facturas_items WHERE factura_id = ? ORDER BY id",
+    [req.params.factura_id],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(result);
+    }
+  );
+});
+
+app.post("/facturas-items", (req, res) => {
+  const { id, ...item } = req.body;
+  db.query("INSERT INTO facturas_items SET ?", item, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id: result.insertId, ...item });
+  });
+});
+
+app.put("/facturas-items/:id", (req, res) => {
+  const { id } = req.params;
+  const { id: _id, ...item } = req.body;
+  db.query("UPDATE facturas_items SET ? WHERE id = ?", [item, id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id, ...item });
+  });
+});
+
+app.delete("/facturas-items/:id", (req, res) => {
+  db.query("DELETE FROM facturas_items WHERE id = ?", [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ deleted: req.params.id });
+  });
+});
+
 // ───────────────────────────────────────────
 
 app.listen(3001, () => {

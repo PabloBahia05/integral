@@ -350,7 +350,6 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
     form.ancho,
     form.alto,
     form.cantidad,
-    form.vidrio,
     form.colocacion,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     JSON.stringify(asociados.map(a => a.codform)),
@@ -594,7 +593,6 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
         ${modelo ? `<div class="info-row"><span class="info-label">Modelo</span><span class="info-value">${modelo}</span></div>` : ""}
         <div class="info-row"><span class="info-label">Cantidad</span><span class="info-value">${form.cantidad} unidad(es)</span></div>
         <div class="info-row"><span class="info-label">Medidas</span><span class="info-value">${form.ancho} cm × ${form.alto} cm</span></div>
-        <div class="info-row"><span class="info-label">Tipo de vidrio</span><span class="info-value">${form.vidrio === "incoloro" ? "Incoloro" : "Esmerilado"}</span></div>
       </div>
     </div>
     <div class="section-title">Detalle de costos</div>
@@ -950,23 +948,6 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
                   </div>
                 </div>
 
-                {/* Tipo de vidrio */}
-                <div className="field">
-                  <span className="label-text">TIPO DE VIDRIO</span>
-                  <div className="toggle-row">
-                    {["incoloro", "esmerilado"].map(v => (
-                      <button
-                        key={v}
-                        type="button"
-                        className={`toggle-btn${form.vidrio === v ? " active" : ""}`}
-                        onClick={() => setForm({ ...form, vidrio: v })}
-                      >
-                        {v === "incoloro" ? "⬜ Incoloro" : "🔲 Esmerilado"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Colocación */}
                 <div className="field">
                   <span className="label-text" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1160,7 +1141,6 @@ export default function PresupuestoMamparas({ presupuestoACargar = null, onCarga
             {modelo && <p><strong>Modelo:</strong> {modelo}</p>}
             <p><strong>Cantidad:</strong> {form.cantidad}</p>
             <p><strong>Dimensiones:</strong> {form.ancho} cm × {form.alto} cm</p>
-            <p><strong>Tipo de vidrio:</strong> {form.vidrio}</p>
             <table>
               <tbody>
                 {asociados.filter(a => a.resultado > 0).map(a => (

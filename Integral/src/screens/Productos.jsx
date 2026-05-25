@@ -23,8 +23,20 @@ const makeColumns = (onVer) => [
     ),
   },
   { key: "codartint",  label: "Código Interno" },
-  { key: "proveedor",   label: "Proveedor" },
   { key: "articulo",  label: "Artículo" },
+  { key: "proveedor", label: "Proveedor" },
+  {
+    key: "codartprov",
+    label: "Cód. Prov.",
+    render: (v) => v ? <span style={{ color: "#5580a0", fontFamily: "monospace", fontSize: 12 }}>{v}</span> : <span style={{ color: "#bbb" }}>—</span>,
+  },
+  {
+    key: "prod_prov",
+    label: "Prod. Proveedor",
+    render: (v) => v
+      ? <span style={{ color: "#0a3a5c", fontSize: 12 }}>{v}</span>
+      : <span style={{ color: "#bbb" }}>—</span>,
+  },
   { key: "rubro",     label: "Rubro" },
   { key: "familia",   label: "Familia" },
   { key: "unidad",    label: "Unidad" },
@@ -36,14 +48,12 @@ const makeColumns = (onVer) => [
   { key: "precio_un",  label: "Precio UN", render: (v) => v != null ? `${parseFloat(v).toLocaleString("es-AR")}` : "-" },
   { key: "descuento", label: "Descuento %", render: (v) => v != null ? `${parseFloat(v)}%` : "-" },
   { key: "flete",     label: "Flete",  render: (v) => v != null ? `$${parseFloat(v).toLocaleString("es-AR")}` : "-" },
-  { key: "proveedor", label: "Proveedor" },
   { key: "cantidad",  label: "Cantidad" },
   { key: "ancho",     label: "Ancho" },
   { key: "alto",      label: "Alto" },
-  { key: "linea",  label: "Línea" },
+  { key: "linea",     label: "Línea" },
   { key: "color",     label: "Color" },
   { key: "area",      label: "Área" },
-  { key: "codprov",   label: "Cód. Proveedor" },
   { key: "codfam",    label: "Cód. Familia" },
   { key: "codrub",    label: "Cód. Rubro" },
 ];
@@ -54,13 +64,13 @@ const EMPTY = {
   linea: "", color: "", familia: "", rubro: "",
   precio_un: "", costosi: "", costosicf: "", costocicf: "", costo_placa: "",
   descuento: "", flete: "", valorlista: "", margen: "",
-  codprov: "", codfam: "", codrub: "",
-  codartprov: "",
+  codfam: "", codrub: "", codartprov: "", prod_prov: "",
 };
 
 const FIELDS_LEFT_TOP = [
   { field: "codartint",  label: "Código Interno",   placeholder: "Ej: ADR00015" },
   { field: "codartprov", label: "Código Proveedor",  placeholder: "Ej: PROV-001" },
+  { field: "prod_prov",  label: "Prod. Proveedor",   placeholder: "Descripción según factura del proveedor" },
   { field: "articulo",   label: "Artículo *",        placeholder: "Ej: Mampara corrediza" },
 ];
 
@@ -155,7 +165,6 @@ function DetalleArticulo({ producto }) {
       {producto.area      && <p className="detalle-codigo">Área: <strong>{producto.area}</strong></p>}
       {producto.unidad    && <p className="detalle-codigo">Unidad: <strong>{producto.unidad}</strong></p>}
       {producto.proveedor && <p className="detalle-codigo">Proveedor: <strong>{producto.proveedor}</strong></p>}
-      {producto.codprov   && <p className="detalle-codigo">Cód. Proveedor: <strong>{producto.codprov}</strong></p>}
       {producto.color     && <p className="detalle-codigo">Color: <strong>{producto.color}</strong></p>}
       {producto.linea     && <p className="detalle-codigo">Línea: <strong>{producto.linea}</strong></p>}
       {producto.familia   && <p className="detalle-codigo">Familia: <strong>{producto.familia}</strong></p>}
@@ -330,6 +339,7 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
       valorlista:  s(selected.valorlista),
       margen:      s(selected.margen),
       codartprov:  s(selected.codartprov),
+      prod_prov:   s(selected.prod_prov),
     });
     setError("");
     setFamiliaEsNueva(false); setRubroEsNuevo(false); setNuevoRubro("");
@@ -371,6 +381,7 @@ export default function Productos({ onSave, onDelete, selected, onSelect, modal,
       valorlista:  toDecimal(form.valorlista),
       margen:      toDecimal(form.margen),
       codartprov:  form.codartprov || null,
+      prod_prov:   form.prod_prov  || null,
     };
     const payload = modal === "nuevo" ? data : { ...data, id: selected.id };
     onSave(payload);
